@@ -1,7 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import pinoHttp from "pino-http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import path from "path";
@@ -13,7 +13,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app: Express = express();
 
-app.set("trust proxy", 1);
+// Number of proxy hops in front of the app (App Platform and a typical nginx setup are both 1).
+const trustProxy = process.env.TRUST_PROXY?.trim();
+app.set("trust proxy", trustProxy === "true" ? true : trustProxy === "false" ? false : Number(trustProxy) || 1);
+
+// Optional header the hosting edge sets to the visitor's IP, e.g. "do-connecting-ip" on
+// DigitalOcean App Platform. Only set this when every request comes through that edge.
+const clientIpHeader = process.env.CLIENT_IP_HEADER?.trim().toLowerCase();
+function clientIp(req: express.Request): string {
+  const fromEdge = clientIpHeader ? req.get(clientIpHeader)?.split(",")[0].trim() : "";
+  return fromEdge || req.ip || "unknown";
+}
+
+// The SPA is served from this same origin, so cross-origin access is off unless listed here.
+const corsOrigins = (process.env.CORS_ORIGINS || "").split(",").map(o => o.trim().replace(/\/+$/, "")).filter(Boolean);
 
 app.use(
   pinoHttp({
@@ -48,7 +61,7 @@ app.use(
   }),
 );
 
-app.use(cors());
+app.use(cors({ origin: corsOrigins.length ? corsOrigins : false }));
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true, limit: "5mb" }));
 
@@ -57,6 +70,7 @@ const authLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(clientIp(req)),
   message: { error: "Too many requests from this IP, please try again after 15 minutes." },
 });
 
