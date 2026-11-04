@@ -110,26 +110,44 @@ In development, open http://localhost:3001 (Express proxies to Vite) or http://l
 
 ## Deploying to DigitalOcean
 
-The app runs on **App Platform** as a single service from `.do/app.yaml`, with **Managed PostgreSQL** and a **Spaces** bucket for uploads. App Platform's disk is wiped on every deploy, so uploads must go to Spaces.
+The app runs on **App Platform** as a single web service, with **Managed PostgreSQL** and a **Spaces** bucket for uploads. App Platform's disk is wiped on every deploy, so uploads must go to Spaces. Set the app up in the DigitalOcean dashboard:
 
-1. **Database:** create a Managed PostgreSQL cluster called `musicstream-db`, in the same region as the app. Its connection string and CA certificate are wired in by the spec (`${db.DATABASE_URL}`, `${db.CA_CERT}`), and the app verifies the database's certificate.
-2. **Spaces:** create a bucket (e.g. `musicstream-media`, with file listing restricted) and a Spaces access key. Set `S3_ENDPOINT` (e.g. `https://lon1.digitaloceanspaces.com`) and `S3_BUCKET` in `.do/app.yaml`.
-3. **Create the app:** `doctl apps create --spec .do/app.yaml`, or upload the file under **Create App** in the dashboard. Allow DigitalOcean access to the `medpluspharmacy/musicstream` repo.
-4. **Secrets:** in the app's **Settings**, fill in the blank secrets:
-   - `JWT_SECRET`: `openssl rand -base64 48` (the server won't start with fewer than 32 characters).
-   - `SECRET_ENCRYPTION_KEY`: `openssl rand -base64 32`. Keep it forever; changing it makes everyone set up 2FA again.
-   - `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`: the Spaces key.
-   - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` on the `release` job: the first super admin (password 12+ characters).
-5. **Deploy.** Each deploy runs `npm run build`, then the `release` job (migrations, plus the first admin), then `npm start`. The health check is `/api/healthz`. Pushes to `production` redeploy automatically.
-6. **After the first sign-in:** clear `SEED_ADMIN_PASSWORD`, and add your own domain under **Settings → Domains**.
+1. **Database:** create a Managed PostgreSQL cluster, in the same region as the app. Attach it to the app as a database component (e.g. named `db`). The app verifies the database's certificate.
+2. **Spaces:** create a bucket (e.g. `musicstream-media`, with file listing restricted) and a Spaces access key.
+3. **Create the app** from the `medpluspharmacy/musicstream` repo, branch `production`, with autodeploy on. For the web service:
+   - Build command: `npm run build`
+   - Run command: `npm start`
+   - HTTP port: `8080`; health check path: `/api/healthz`
+   - Keep 1 instance for now: the sign-in rate limit and the AzuraCast now-playing cache live in each server's memory.
+4. **Pre-deploy job:** add a job (kind: pre-deploy) from the same repo and branch, with build command `npm run build` and run command `npm run release`. It runs migrations before each release, and creates the first super admin when `SEED_ADMIN_PASSWORD` is set.
+5. **Environment variables** (app-level, so the job gets them too):
 
-If the first migration fails with `permission denied for schema public`, the database user doesn't own the database (PostgreSQL 15+). Connect as `doadmin` and run `ALTER DATABASE musicstream OWNER TO musicstream;`.
+   | Key | Value |
+   |---|---|
+   | `NODE_ENV` | `production` |
+   | `DATABASE_URL` | `${db.DATABASE_URL}` |
+   | `DATABASE_CA_CERT` | `${db.CA_CERT}` |
+   | `JWT_SECRET` (encrypt) | `openssl rand -base64 48` (the server won't start with fewer than 32 characters) |
+   | `SECRET_ENCRYPTION_KEY` (encrypt) | `openssl rand -base64 32`. Keep it forever; changing it makes everyone set up 2FA again. |
+   | `STORAGE_DRIVER` | `s3` |
+   | `S3_ENDPOINT` | your Spaces region endpoint, e.g. `https://lon1.digitaloceanspaces.com` |
+   | `S3_BUCKET` | the bucket name |
+   | `S3_PREFIX` | `production` |
+   | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` (encrypt) | the Spaces key |
+   | `UPLOAD_DIR` | `/tmp/musicstream-uploads` |
+   | `MAX_UPLOAD_MB` | `100` |
+   | `TRUST_PROXY` | `1` |
+   | `CLIENT_IP_HEADER` | `do-connecting-ip` |
 
-Keep `instance_count` at 1 for now: the sign-in rate limit and the AzuraCast now-playing cache live in each server's memory.
+   On the pre-deploy job only, for the first deploy: `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` (encrypt; 12+ characters), for the first super admin.
+6. **Deploy.** Each deploy runs `npm run build`, then the pre-deploy job, then `npm start`. Pushes to `production` redeploy automatically.
+7. **After the first sign-in:** clear `SEED_ADMIN_PASSWORD`, and add your own domain under **Settings → Domains**.
+
+If the first migration fails with `permission denied for schema public`, the database user doesn't own the database (PostgreSQL 15+). Connect as `doadmin` and run `ALTER DATABASE <db name> OWNER TO <db user>;`.
 
 ## Environment Variables
 
-See `backend/.env.example` (local defaults) and `.do/app.yaml` (production):
+See `backend/.env.example` (local defaults) and the table above (production):
 - `DATABASE_URL` - PostgreSQL connection string. SSL is on automatically for any non-local host. `ssl*` options in the URL are ignored; use the settings below.
 - `DATABASE_CA_CERT` - the database's CA certificate (PEM text); when set, the server certificate is verified
 - `DATABASE_SSL` - `true` / `false` to force SSL on or off
