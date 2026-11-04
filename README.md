@@ -62,7 +62,7 @@ models/<Model>.ts                   Sequelize model (registered in models/index.
 migrations/NNN-<name>.cjs           raw-SQL schema changes, run by sequelize-cli
 ```
 
-Media files live under `UPLOAD_DIR` (default `backend/uploads/`) via `lib/storage.ts`, a small interface with a local-disk driver; an S3 driver can implement the same interface.
+Media files go through `lib/storage.ts`. `STORAGE_DRIVER=local` (default) keeps them under `UPLOAD_DIR`; `STORAGE_DRIVER=s3` stores them in an S3-compatible bucket such as DigitalOcean Spaces. Either way, the API streams them to listeners, so the bucket stays private.
 
 ### Frontend layout
 
@@ -86,28 +86,63 @@ Sidebar entries live in `NAV_STRUCTURE` in `src/components/layout.tsx`.
 
 ## Development
 
+One server runs everything. The backend is the API under `/api`, and it also serves the dashboard: built files in production, or the Vite dev server (with hot reload) in development. The root `package.json` drives both apps:
+
 ```bash
 cp backend/.env.example backend/.env   # then fill in DATABASE_URL, JWT_SECRET, seed admin
-(cd frontend && npm install)
-cd backend
-npm install
+npm run build                          # installs and builds frontend + backend
 npm run db:migrate
-npm run build && npm run db:seed       # creates the first admin user
-npm run dev
+npm run db:seed                        # creates the first admin user
+npm run dev                            # http://localhost:3001
 ```
+
+| Command | What it does |
+|---|---|
+| `npm run build` | Installs both apps' dependencies and builds the frontend and backend |
+| `npm start` | Runs the production server: API on `/api`, dashboard on every other path, on `$PORT` |
+| `npm run dev` | Development: builds the backend, which spawns Vite with hot reload |
+| `npm run release` | Runs migrations, then seeds the first admin if `SEED_ADMIN_PASSWORD` is set (used before each deploy) |
+| `npm run typecheck` | Typechecks both apps |
 
 Sign in as the seeded admin. You'll be asked to set up 2FA with an authenticator app. Then share the site link. New sign-ups wait under **Listeners → Waiting for approval**, and you can delegate areas to other people under **Admin team**.
 
-The backend spawns the Vite dev server in development mode. Open http://localhost:3001 (Express proxies to Vite) or http://localhost:5000 (Vite proxies `/api` to Express).
+In development, open http://localhost:3001 (Express proxies to Vite) or http://localhost:5000 (Vite proxies `/api` to Express).
+
+## Deploying to DigitalOcean
+
+The app runs on **App Platform** as a single service from `.do/app.yaml`, with **Managed PostgreSQL** and a **Spaces** bucket for uploads. App Platform's disk is wiped on every deploy, so uploads must go to Spaces.
+
+1. **Database:** create a Managed PostgreSQL cluster called `musicstream-db`, in the same region as the app. Its connection string and CA certificate are wired in by the spec (`${db.DATABASE_URL}`, `${db.CA_CERT}`), and the app verifies the database's certificate.
+2. **Spaces:** create a bucket (e.g. `musicstream-media`, with file listing restricted) and a Spaces access key. Set `S3_ENDPOINT` (e.g. `https://lon1.digitaloceanspaces.com`) and `S3_BUCKET` in `.do/app.yaml`.
+3. **Create the app:** `doctl apps create --spec .do/app.yaml`, or upload the file under **Create App** in the dashboard. Allow DigitalOcean access to the `medpluspharmacy/musicstream` repo.
+4. **Secrets:** in the app's **Settings**, fill in the blank secrets:
+   - `JWT_SECRET`: `openssl rand -base64 48` (the server won't start with fewer than 32 characters).
+   - `SECRET_ENCRYPTION_KEY`: `openssl rand -base64 32`. Keep it forever; changing it makes everyone set up 2FA again.
+   - `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`: the Spaces key.
+   - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` on the `release` job: the first super admin (password 12+ characters).
+5. **Deploy.** Each deploy runs `npm run build`, then the `release` job (migrations, plus the first admin), then `npm start`. The health check is `/api/healthz`. Pushes to `production` redeploy automatically.
+6. **After the first sign-in:** clear `SEED_ADMIN_PASSWORD`, and add your own domain under **Settings → Domains**.
+
+If the first migration fails with `permission denied for schema public`, the database user doesn't own the database (PostgreSQL 15+). Connect as `doadmin` and run `ALTER DATABASE musicstream OWNER TO musicstream;`.
+
+Keep `instance_count` at 1 for now: the sign-in rate limit and the AzuraCast now-playing cache live in each server's memory.
 
 ## Environment Variables
 
-See `backend/.env.example`:
-- `DATABASE_URL` - PostgreSQL connection string
-- `PORT` - Backend port (default 3001)
-- `FRONTEND_PORT` - Frontend port (default 5000)
-- `JWT_SECRET` - JWT signing secret
-- `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` - first admin account, used by `npm run db:seed`
-- `UPLOAD_DIR` - where uploaded media is stored (default `./uploads`, relative to `backend/`)
+See `backend/.env.example` (local defaults) and `.do/app.yaml` (production):
+- `DATABASE_URL` - PostgreSQL connection string. SSL is on automatically for any non-local host. `ssl*` options in the URL are ignored; use the settings below.
+- `DATABASE_CA_CERT` - the database's CA certificate (PEM text); when set, the server certificate is verified
+- `DATABASE_SSL` - `true` / `false` to force SSL on or off
+- `PORT` - port the server listens on (App Platform sets this)
+- `FRONTEND_PORT` - Vite dev server port in development (default 5000)
+- `JWT_SECRET` - JWT signing secret, 32+ characters in production
+- `SECRET_ENCRYPTION_KEY` - optional key for encrypting 2FA secrets and the AzuraCast API key at rest; defaults to one derived from `JWT_SECRET`. Changing either later invalidates everyone's 2FA setup.
+- `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` - first admin account, used by `npm run db:seed` / `npm run release`
+- `STORAGE_DRIVER` - `local` (default) or `s3`
+- `UPLOAD_DIR` - local media folder, and temp space for uploads with `s3` (default `./uploads`, relative to `backend/`)
+- `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` - bucket settings for `STORAGE_DRIVER=s3`; optional `S3_PREFIX` (folder inside the bucket), `S3_REGION`, `S3_FORCE_PATH_STYLE`
 - `MAX_UPLOAD_MB` - per-file upload limit (default 500)
-- `SECRET_ENCRYPTION_KEY` - optional key for encrypting 2FA secrets at rest; defaults to one derived from `JWT_SECRET`. Changing either later invalidates everyone's 2FA setup.
+- `TRUST_PROXY` - proxy hops in front of the app (default 1)
+- `CLIENT_IP_HEADER` - header with the visitor's IP from your hosting edge (App Platform: `do-connecting-ip`); used by the sign-in rate limit
+- `CORS_ORIGINS` - comma-separated extra origins allowed to call the API from a browser; not needed when this server serves the dashboard
+- `LOG_LEVEL` - log level (default `info`)

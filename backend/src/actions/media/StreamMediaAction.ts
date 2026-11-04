@@ -1,9 +1,16 @@
 import { Request, Response } from "express";
+import { pipeline } from "node:stream/promises";
 import { verifyMediaToken } from "../../middlewares/auth.js";
 import MediaController from "../../controllers/MediaController.js";
 import { storage } from "../../lib/storage.js";
 import { sendError } from "../../lib/http-error.js";
 import { parseId } from "../../lib/params.js";
+
+async function send(res: Response, key: string, range?: { start: number; end: number }) {
+  const stream = await storage.openReadStream(key, range);
+  // A listener closing the tab ends the pipeline early; that's normal, not an error.
+  await pipeline(stream, res).catch(() => { if (!res.writableEnded) res.destroy(); });
+}
 
 /** Streams a media file with HTTP Range support so players can seek. Auth is the signed `t` query token. */
 export class StreamMediaAction {
@@ -22,7 +29,7 @@ export class StreamMediaAction {
       const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? "");
       if (!match || (!match[1] && !match[2])) {
         res.setHeader("Content-Length", size);
-        storage.createReadStream(media.storageKey!).pipe(res);
+        await send(res, media.storageKey!);
         return;
       }
       let start: number;
@@ -42,7 +49,7 @@ export class StreamMediaAction {
       res.status(206);
       res.setHeader("Content-Range", `bytes ${start}-${end}/${size}`);
       res.setHeader("Content-Length", end - start + 1);
-      storage.createReadStream(media.storageKey!, { start, end }).pipe(res);
+      await send(res, media.storageKey!, { start, end });
     } catch (err) {
       sendError(res, err, "GET /media/:id/stream");
     }

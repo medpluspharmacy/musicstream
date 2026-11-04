@@ -1,0 +1,112 @@
+# DigitalOcean App Platform spec for MusicStream.
+# One service runs the API (/api) and serves the built dashboard; a pre-deploy job
+# runs database migrations before each release goes live.
+#
+# Before the first deploy:
+#   1. Create a Managed PostgreSQL cluster named "musicstream-db" (or change cluster_name below).
+#   2. Create a Spaces bucket and a Spaces access key; fill in S3_ENDPOINT / S3_BUCKET below.
+#   3. Create the app: doctl apps create --spec .do/app.yaml   (or upload this file in the dashboard)
+#   4. In the app's Settings, set every SECRET value (they're blank here on purpose).
+# See README.md, "Deploying to DigitalOcean".
+name: musicstream
+# Pick the region closest to your listeners, and keep the database and Spaces bucket in the same one.
+region: lon
+
+envs:
+  - key: NODE_ENV
+    value: production
+  - key: DATABASE_URL
+    scope: RUN_TIME
+    value: ${db.DATABASE_URL}
+  - key: DATABASE_CA_CERT
+    scope: RUN_TIME
+    value: ${db.CA_CERT}
+  # At least 32 random characters, e.g. `openssl rand -base64 48`.
+  - key: JWT_SECRET
+    scope: RUN_TIME
+    type: SECRET
+  # 32 random bytes, e.g. `openssl rand -base64 32`. Encrypts 2FA secrets and the AzuraCast key.
+  # Don't change it after launch, or everyone has to set up 2FA again.
+  - key: SECRET_ENCRYPTION_KEY
+    scope: RUN_TIME
+    type: SECRET
+  - key: STORAGE_DRIVER
+    scope: RUN_TIME
+    value: s3
+  - key: S3_ENDPOINT
+    scope: RUN_TIME
+    value: https://lon1.digitaloceanspaces.com
+  - key: S3_BUCKET
+    scope: RUN_TIME
+    value: musicstream-media
+  - key: S3_PREFIX
+    scope: RUN_TIME
+    value: production
+  - key: S3_ACCESS_KEY_ID
+    scope: RUN_TIME
+    type: SECRET
+  - key: S3_SECRET_ACCESS_KEY
+    scope: RUN_TIME
+    type: SECRET
+  # Temp space for uploads on their way to Spaces.
+  - key: UPLOAD_DIR
+    scope: RUN_TIME
+    value: /tmp/musicstream-uploads
+  - key: MAX_UPLOAD_MB
+    scope: RUN_TIME
+    value: "100"
+  - key: TRUST_PROXY
+    scope: RUN_TIME
+    value: "1"
+  # App Platform's edge puts the visitor's IP in this header; the sign-in rate limit uses it.
+  - key: CLIENT_IP_HEADER
+    scope: RUN_TIME
+    value: do-connecting-ip
+  - key: LOG_LEVEL
+    scope: RUN_TIME
+    value: info
+
+services:
+  - name: web
+    environment_slug: node-js
+    github:
+      repo: medpluspharmacy/musicstream
+      branch: production
+      deploy_on_push: true
+    build_command: npm run build
+    run_command: npm start
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    health_check:
+      http_path: /api/healthz
+      initial_delay_seconds: 10
+
+jobs:
+  - name: release
+    kind: PRE_DEPLOY
+    environment_slug: node-js
+    github:
+      repo: medpluspharmacy/musicstream
+      branch: production
+      deploy_on_push: true
+    build_command: npm run build
+    # Runs migrations; also creates the first super admin when SEED_ADMIN_PASSWORD is set.
+    run_command: npm run release
+    instance_size_slug: apps-s-1vcpu-1gb
+    envs:
+      # Set both for the first deploy, then clear SEED_ADMIN_PASSWORD once you've signed in.
+      - key: SEED_ADMIN_EMAIL
+        scope: RUN_TIME
+        type: SECRET
+      - key: SEED_ADMIN_PASSWORD
+        scope: RUN_TIME
+        type: SECRET
+
+databases:
+  - name: db
+    engine: PG
+    production: true
+    cluster_name: musicstream-db
+    db_name: musicstream
+    db_user: musicstream

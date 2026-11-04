@@ -10,6 +10,10 @@ async function seed() {
     console.error("SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD environment variables are required");
     process.exit(1);
   }
+  if (password.length < 12) {
+    console.error("SEED_ADMIN_PASSWORD must be at least 12 characters");
+    process.exit(1);
+  }
 
   await connectDatabase();
 

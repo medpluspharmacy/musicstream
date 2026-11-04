@@ -53,7 +53,7 @@ export default class MediaController {
       const ext = path.extname(file.originalname).toLowerCase();
       const title = (typeof rawTitle === "string" && rawTitle.trim())
         || path.basename(file.originalname, path.extname(file.originalname));
-      const storageKey = await storage.saveFromPath(file.path, ext);
+      const storageKey = await storage.saveFromPath(file.path, ext, file.mimetype);
       return await MediaFile.create({
         title,
         kind,

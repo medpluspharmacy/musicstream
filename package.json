@@ -1,0 +1,19 @@
+{
+  "name": "musicstream",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MusicStream: one server runs the API (/api) and serves the built dashboard.",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "install:all": "npm ci --prefix backend --include=dev && npm ci --prefix frontend --include=dev",
+    "build": "npm run install:all && npm run build --prefix frontend && npm run build --prefix backend",
+    "start": "NODE_ENV=production npm start --prefix backend",
+    "dev": "bash start.sh",
+    "typecheck": "npm run typecheck --prefix backend && npm run typecheck --prefix frontend",
+    "db:migrate": "npm run db:migrate --prefix backend",
+    "db:seed": "npm run db:seed --prefix backend",
+    "release": "npm run db:migrate && if [ -n \"$SEED_ADMIN_PASSWORD\" ]; then npm run db:seed; fi"
+  }
+}
