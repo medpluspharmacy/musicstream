@@ -8,9 +8,10 @@ Follow the existing layering when adding a feature (see README.md): route → Ac
 
 ## Git workflow
 
-`production` is the production branch.
+`production` is the production branch. Day-to-day work happens on `mayordevstream`.
 
-- **Always pull the latest changes from `production` before starting work.** Branch from the up-to-date `production`.
+- **Always pull the latest changes from `production` before starting work,** and bring them into `mayordevstream`.
+- **Work on the `mayordevstream` branch.** Raise PRs from `mayordevstream` into `production`.
 - **Never create a git commit without asking first.** Confirm with the user before running `git commit`, even when a change was made at their explicit request.
 - **Always ask which branch to commit to.** Don't assume a branch name without confirming it first.
 - **Never push to `production` directly.** All changes reach it through a pull request.
