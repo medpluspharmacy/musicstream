@@ -118,7 +118,7 @@ function AzuraCastCard() {
       </div>
       <p className="text-sm text-muted-foreground mt-3">
         Play a 24/7 station from your AzuraCast server, including live DJ sets. Listeners hear it through MusicStream, so they
-        still need an approved email and 2FA. To stop people bypassing that, keep the station non-public in AzuraCast.
+        still need an approved account and 2FA. To stop people bypassing that, keep the station non-public in AzuraCast.
       </p>
 
       {!conn ? null : conn.connected && !editing ? (
