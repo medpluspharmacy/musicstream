@@ -3,9 +3,8 @@
  *
  * SSL is decided here, not by the URL: ssl* query options (e.g. DigitalOcean's
  * ?sslmode=require) are removed so they can't override the settings below.
- * - SSL is off by default; DATABASE_SSL=true enables it.
- * - DATABASE_CA_CERT (the PEM text; App Platform provides it as ${db.CA_CERT})
- *   makes the connection verify the server certificate.
+ * - Otherwise SSL is off for localhost and required for remote database hosts.
+ * - A non-empty DATABASE_CERT (PEM text, not a filepath) enables server certificate verification.
  */
 function databaseConfig(rawUrl) {
   let url = rawUrl;
@@ -21,10 +20,15 @@ function databaseConfig(rawUrl) {
     // Leave unparseable URLs to Sequelize, which reports a clearer error.
   }
 
-  const mode = (process.env.DATABASE_SSL || "").trim().toLowerCase();
-  if (mode !== "true") return { url, ssl: false };
-  const ca = process.env.DATABASE_CA_CERT?.trim();
-  return { url, ssl: ca ? { require: true, rejectUnauthorized: true, ca } : { require: true, rejectUnauthorized: false } };
+  const local = host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "";
+  if (local) return { url, ssl: false };
+  const ca = process.env.DATABASE_CERT?.trim();
+  return {
+    url,
+    ssl: ca
+      ? { require: true, rejectUnauthorized: true, ca }
+      : { require: true, rejectUnauthorized: false },
+  };
 }
 
 module.exports = { databaseConfig };
