@@ -18,6 +18,7 @@ import Playlist from "@/pages/playlist";
 import Listeners from "@/pages/listeners";
 import Team from "@/pages/team";
 import Integrations from "@/pages/integrations";
+import Settings from "@/pages/settings";
 import Listen from "@/pages/listen";
 
 const queryClient = new QueryClient({
@@ -46,6 +47,7 @@ const PAGES: [string, React.ComponentType, Access][] = [
   ["/listeners", Listeners, "listeners"],
   ["/team", Team, "super_admin"],
   ["/integrations", Integrations, "integrations"],
+  ["/settings", Settings, "super_admin"],
 ];
 
 function Router() {

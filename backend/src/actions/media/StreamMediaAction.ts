@@ -2,11 +2,11 @@ import { Request, Response } from "express";
 import { pipeline } from "node:stream/promises";
 import { verifyMediaToken } from "../../middlewares/auth.js";
 import MediaController from "../../controllers/MediaController.js";
-import { storage } from "../../lib/storage.js";
+import type { MediaStorage } from "../../lib/storage.js";
 import { sendError } from "../../lib/http-error.js";
 import { parseId } from "../../lib/params.js";
 
-async function send(res: Response, key: string, range?: { start: number; end: number }) {
+async function send(res: Response, storage: MediaStorage, key: string, range?: { start: number; end: number }) {
   const stream = await storage.openReadStream(key, range);
   // A listener closing the tab ends the pipeline early; that's normal, not an error.
   await pipeline(stream, res).catch(() => { if (!res.writableEnded) res.destroy(); });
@@ -20,7 +20,7 @@ export class StreamMediaAction {
       if (!id || !verifyMediaToken(req.query.t, id)) { res.status(403).json({ error: "Forbidden" }); return; }
       const found = await MediaController.openForStreaming(id);
       if (!found) { res.status(404).json({ error: "Media not found" }); return; }
-      const { media, size } = found;
+      const { media, storage, size } = found;
 
       res.setHeader("Content-Type", media.mimeType);
       res.setHeader("Accept-Ranges", "bytes");
@@ -29,7 +29,7 @@ export class StreamMediaAction {
       const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? "");
       if (!match || (!match[1] && !match[2])) {
         res.setHeader("Content-Length", size);
-        await send(res, media.storageKey!);
+        await send(res, storage, media.storageKey!);
         return;
       }
       let start: number;
@@ -49,7 +49,7 @@ export class StreamMediaAction {
       res.status(206);
       res.setHeader("Content-Range", `bytes ${start}-${end}/${size}`);
       res.setHeader("Content-Length", end - start + 1);
-      await send(res, media.storageKey!, { start, end });
+      await send(res, storage, media.storageKey!, { start, end });
     } catch (err) {
       sendError(res, err, "GET /media/:id/stream");
     }
