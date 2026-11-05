@@ -2,6 +2,12 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../db/sequelize.js";
 
 class MediaFile extends Model {
+  // Where a file is stored is the server's business, not part of the API.
+  toJSON() {
+    const { storageKey: _key, storageBackendId: _backend, ...rest } = super.toJSON() as Record<string, unknown>;
+    return rest;
+  }
+
   declare id: number;
   declare title: string;
   declare kind: "audio" | "video";
@@ -11,6 +17,7 @@ class MediaFile extends Model {
   declare sizeBytes: number;
   declare durationSeconds: number;
   declare storageKey: string | null;
+  declare storageBackendId: number | null;
   declare originalName: string | null;
   declare uploadedById: number | null;
   declare createdAt: Date;
@@ -31,6 +38,7 @@ MediaFile.init(
     },
     durationSeconds: { type: DataTypes.DOUBLE, allowNull: false, field: "duration_seconds" },
     storageKey: { type: DataTypes.TEXT, field: "storage_key" },
+    storageBackendId: { type: DataTypes.INTEGER, field: "storage_backend_id" },
     originalName: { type: DataTypes.TEXT, field: "original_name" },
     uploadedById: { type: DataTypes.INTEGER, field: "uploaded_by_id" },
     createdAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW, field: "created_at" },

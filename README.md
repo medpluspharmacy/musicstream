@@ -10,6 +10,7 @@ A private, company-wide radio station. Admins upload audio and video (ads, jingl
 - **Listeners**: approve or decline new sign-ups; see 2FA status; deactivate/reactivate; reset 2FA
 - **Admin team** (super admin only): promote approved listeners to sub-admins and choose what each one manages
 - **Integrations**: uploaded media, and AzuraCast radio stations (see below); Spotify is planned
+- **Settings** (super admin only): choose where uploads are stored (see below)
 - **Dashboard**: station status and listener/media counts
 
 **Listener** (role `user`)
@@ -39,6 +40,16 @@ Instead of the playlist, the station can play a live [AzuraCast](https://www.azu
 - Every listener uses one connection from this server to AzuraCast, so bandwidth grows with the audience (about 1 MB per minute per listener at 128 kbps).
 - The stream and artwork must be on the same host as the configured AzuraCast address. The server doesn't follow redirects, and the API key is stored encrypted.
 
+### Media storage
+
+The super admin chooses where uploads go under **Settings → Storage**: DigitalOcean Spaces, Amazon S3, Cloudflare R2, Backblaze B2, Wasabi, Google Cloud Storage (with an HMAC key), any other S3-compatible service such as MinIO, or this server's disk. Presets work out the storage URL from the region or account; for other services you enter it.
+
+- **Test and save** writes, reads back and deletes a small file, so a wrong key or bucket is caught before any upload goes there. The key must be able to read, write and delete in the bucket.
+- Until something is saved there, the `STORAGE_DRIVER` and `S3_*` environment variables decide. **Use server settings** goes back to them.
+- Files aren't moved. Each file remembers its location (`media_files.storage_backend_id`) and keeps playing from it, so keep an old bucket and its key working while any file there is still in use.
+- The secret key is stored encrypted and never sent back to the browser. A blank secret keeps the saved one only for the same storage URL and access key.
+- Listeners always stream through this server, so buckets stay private.
+
 ### Spotify
 
 Spotify only permits playback through its own player, signed in to each listener's own Spotify Premium account. Its tracks can't be re-streamed to everyone like uploaded files. `media_files.provider` / `provider_ref` are reserved so external sources can sit beside uploads in the playlist when that integration is built.
@@ -62,7 +73,7 @@ models/<Model>.ts                   Sequelize model (registered in models/index.
 migrations/NNN-<name>.cjs           raw-SQL schema changes, run by sequelize-cli
 ```
 
-Media files go through `lib/storage.ts`. `STORAGE_DRIVER=local` (default) keeps them under `UPLOAD_DIR`; `STORAGE_DRIVER=s3` stores them in an S3-compatible bucket such as DigitalOcean Spaces. Either way, the API streams them to listeners, so the bucket stays private.
+Media files go through `lib/storage.ts`, and `controllers/StorageController.ts` picks the location for each file: the one saved under Settings, or otherwise the environment (`STORAGE_DRIVER=local` keeps files under `UPLOAD_DIR`, `STORAGE_DRIVER=s3` uses an S3-compatible bucket). Either way, the API streams them to listeners, so the bucket stays private.
 
 ### Frontend layout
 
@@ -156,7 +167,7 @@ See `backend/.env.example` (local defaults) and the table above (production):
 - `JWT_SECRET` - JWT signing secret, 32+ characters in production
 - `SECRET_ENCRYPTION_KEY` - optional key for encrypting 2FA secrets and the AzuraCast API key at rest; defaults to one derived from `JWT_SECRET`. Changing either later invalidates everyone's 2FA setup.
 - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` - first admin account, used by `npm run db:seed` / `npm run release`
-- `STORAGE_DRIVER` - `local` (default) or `s3`
+- `STORAGE_DRIVER` - `local` (default) or `s3`; used until a location is saved under Settings
 - `UPLOAD_DIR` - local media folder, and temp space for uploads with `s3` (default `./uploads`, relative to `backend/`)
 - `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` - bucket settings for `STORAGE_DRIVER=s3`; optional `S3_PREFIX` (folder inside the bucket), `S3_REGION`, `S3_FORCE_PATH_STYLE`
 - `MAX_UPLOAD_MB` - per-file upload limit (default 500)

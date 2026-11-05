@@ -212,3 +212,36 @@ export const getAzuraCast = () => customFetch<AzuraCastConnection>("/api/admin/i
 export const saveAzuraCast = (body: { baseUrl: string; station: string; apiKey?: string }) =>
   customFetch<AzuraCastConnection>("/api/admin/integrations/azuracast", json("PUT", body));
 export const disconnectAzuraCast = () => customFetch<AzuraCastConnection>("/api/admin/integrations/azuracast", json("DELETE"));
+
+// --- settings
+export interface StorageProvider {
+  id: string;
+  name: string;
+  driver: "local" | "s3";
+  endpointTemplate: string | null;
+  locationLabel: string | null;
+  locations: string[];
+  keyHelp: string;
+}
+export interface StorageSettings {
+  /** "saved" on the Settings page, or "environment" from the server's settings. */
+  source: "saved" | "environment";
+  provider: string;
+  location: string;
+  endpoint: string;
+  bucket: string;
+  prefix: string;
+  accessKeyId: string | null;
+  hasSecret: boolean;
+  forcePathStyle: boolean;
+  /** Uploaded files that stay in an earlier location. */
+  filesElsewhere: number;
+  providers: StorageProvider[];
+}
+export const getStorageSettings = () => customFetch<StorageSettings>("/api/admin/settings/storage");
+/** Leave `secretAccessKey` undefined to keep the saved key. */
+export const saveStorageSettings = (body: {
+  provider: string; location: string; endpoint: string; bucket: string; prefix: string;
+  accessKeyId: string; secretAccessKey?: string; forcePathStyle: boolean;
+}) => customFetch<StorageSettings>("/api/admin/settings/storage", json("PUT", body));
+export const resetStorageSettings = () => customFetch<StorageSettings>("/api/admin/settings/storage", json("DELETE"));

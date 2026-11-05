@@ -1,9 +1,9 @@
 import path from "node:path";
 import fsp from "node:fs/promises";
 import { MediaFile, PlaylistItem } from "../models/index.js";
-import { storage } from "../lib/storage.js";
 import { HttpError } from "../lib/http-error.js";
 import StationController, { mediaStreamUrl } from "./StationController.js";
+import StorageController from "./StorageController.js";
 
 const MAX_DURATION_SECONDS = 24 * 60 * 60;
 
@@ -53,6 +53,7 @@ export default class MediaController {
       const ext = path.extname(file.originalname).toLowerCase();
       const title = (typeof rawTitle === "string" && rawTitle.trim())
         || path.basename(file.originalname, path.extname(file.originalname));
+      const { storage, backendId } = await StorageController.forUpload();
       const storageKey = await storage.saveFromPath(file.path, ext, file.mimetype);
       return await MediaFile.create({
         title,
@@ -61,6 +62,7 @@ export default class MediaController {
         sizeBytes: file.size,
         durationSeconds,
         storageKey,
+        storageBackendId: backendId,
         originalName: file.originalname,
         uploadedById,
       });
@@ -83,13 +85,14 @@ export default class MediaController {
     if (!media) return null;
     // Playlist rows cascade; re-anchor the station around the removal.
     await StationController.mutate(() => media.destroy());
-    if (media.storageKey) await storage.remove(media.storageKey);
+    if (media.storageKey) await (await StorageController.forMedia(media)).remove(media.storageKey);
     return true;
   }
 
   static async openForStreaming(id: number) {
     const media = await MediaFile.findByPk(id);
     if (!media?.storageKey) return null;
-    return { media, size: await storage.size(media.storageKey) };
+    const storage = await StorageController.forMedia(media);
+    return { media, storage, size: await storage.size(media.storageKey) };
   }
 }
