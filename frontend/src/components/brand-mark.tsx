@@ -47,7 +47,7 @@ export function BrandMark({ logoUrl, letter, companyName, size, fallbackBg }: Br
 
   return (
     <div
-      className={`${dims.box} ${dims.rounded} flex items-center justify-center text-white font-bold ${dims.text} shrink-0 ${fallbackBg ? "" : "bg-primary text-primary-foreground"}`}
+      className={`${dims.box} ${dims.rounded} flex items-center justify-center text-white font-bold ${dims.text} shrink-0 ${fallbackBg ? "" : "bg-brand-gradient text-white"}`}
       style={fallbackBg ? { backgroundColor: fallbackBg } : undefined}
     >
       {letter}

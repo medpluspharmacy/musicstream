@@ -38,6 +38,8 @@ export interface DashboardSummary {
   newListenersThisWeek: number;
   mediaCount: number;
   pendingApproval: number;
+  /** Listeners tuned in right now. */
+  listeningNow: number;
   station: StationStatus;
 }
 
@@ -51,6 +53,15 @@ export interface StationStatus {
   azuracastStation: string | null;
   itemCount: number;
   totalDurationSeconds: number;
+  playback: PlaybackSettings;
+}
+
+/** How the playlist plays, for every listener. */
+export interface PlaybackSettings {
+  /** Seconds each item overlaps the next, 0–12. */
+  crossfadeSeconds: number;
+  /** Players load the next item early so it starts without a gap. */
+  gapless: boolean;
 }
 
 export type MediaKind = "audio" | "video";
@@ -101,7 +112,24 @@ export interface NowPlaying {
     durationSeconds: number;
     offsetSeconds: number;
     streamUrl: string;
+    /** Seconds this item fades in over the previous one. */
+    fadeInSeconds: number;
+    /** Seconds it fades out under the next one. */
+    fadeOutSeconds: number;
+    /** When the next item starts, from `offsetSeconds`. */
+    nextStartsInSeconds: number;
   } | null;
+  /** The item after `current`, so players can load it early. */
+  next: {
+    itemId: number;
+    mediaId: number;
+    title: string;
+    kind: MediaKind;
+    mimeType: string;
+    durationSeconds: number;
+    streamUrl: string;
+  } | null;
+  gapless: boolean;
   upNext: { title: string; kind: MediaKind; durationSeconds: number }[];
 }
 
@@ -146,6 +174,18 @@ export const setListenerActive = (id: number, isActive: boolean) =>
 export const resetListener2FA = (id: number) => customFetch<User>(`/api/admin/listeners/${id}/reset-2fa`, json("POST"));
 export const approveListener = (id: number) => customFetch<User>(`/api/admin/listeners/${id}/approve`, json("POST"));
 export const declineListener = (id: number) => customFetch<User>(`/api/admin/listeners/${id}/decline`, json("POST"));
+export interface ConnectedListener {
+  id: number;
+  name: string;
+  email: string;
+  /** True when tuned in; false when the Listen page is open but not playing. */
+  listening: boolean;
+  connectedSince: string;
+  listeningSince: string | null;
+  lastSeenAt: string;
+}
+export const listConnectedListeners = () => customFetch<ConnectedListener[]>("/api/admin/listeners/connected");
+export const signOutListener = (id: number) => customFetch<User>(`/api/admin/listeners/${id}/sign-out`, json("POST"));
 
 // --- admin team (super admin only)
 export const listAdmins = () => customFetch<User[]>("/api/admin/team");
@@ -195,9 +235,13 @@ export const reorderPlaylist = (itemIds: number[]) =>
 export const getStationStatus = () => customFetch<StationStatus>("/api/admin/station");
 export const startStation = () => customFetch<StationStatus>("/api/admin/station/start", json("POST"));
 export const stopStation = () => customFetch<StationStatus>("/api/admin/station/stop", json("POST"));
+export const setPlayback = (settings: PlaybackSettings) =>
+  customFetch<StationStatus>("/api/admin/station/playback", json("PUT", settings));
 export const setStationSource = (source: StationSource) =>
   customFetch<StationStatus>("/api/admin/station/source", json("PUT", { source }));
-export const getNowPlaying = () => customFetch<NowPlaying>("/api/station/now-playing");
+/** `listening` tells the server the player is tuned in, for the admins' Connected list. */
+export const getNowPlaying = (listening = false) =>
+  customFetch<NowPlaying>(`/api/station/now-playing${listening ? "?listening=1" : ""}`);
 
 // --- integrations
 export interface AzuraCastConnection {
@@ -212,3 +256,36 @@ export const getAzuraCast = () => customFetch<AzuraCastConnection>("/api/admin/i
 export const saveAzuraCast = (body: { baseUrl: string; station: string; apiKey?: string }) =>
   customFetch<AzuraCastConnection>("/api/admin/integrations/azuracast", json("PUT", body));
 export const disconnectAzuraCast = () => customFetch<AzuraCastConnection>("/api/admin/integrations/azuracast", json("DELETE"));
+
+// --- settings
+export interface StorageProvider {
+  id: string;
+  name: string;
+  driver: "local" | "s3";
+  endpointTemplate: string | null;
+  locationLabel: string | null;
+  locations: string[];
+  keyHelp: string;
+}
+export interface StorageSettings {
+  /** "saved" on the Settings page, or "environment" from the server's settings. */
+  source: "saved" | "environment";
+  provider: string;
+  location: string;
+  endpoint: string;
+  bucket: string;
+  prefix: string;
+  accessKeyId: string | null;
+  hasSecret: boolean;
+  forcePathStyle: boolean;
+  /** Uploaded files that stay in an earlier location. */
+  filesElsewhere: number;
+  providers: StorageProvider[];
+}
+export const getStorageSettings = () => customFetch<StorageSettings>("/api/admin/settings/storage");
+/** Leave `secretAccessKey` undefined to keep the saved key. */
+export const saveStorageSettings = (body: {
+  provider: string; location: string; endpoint: string; bucket: string; prefix: string;
+  accessKeyId: string; secretAccessKey?: string; forcePathStyle: boolean;
+}) => customFetch<StorageSettings>("/api/admin/settings/storage", json("PUT", body));
+export const resetStorageSettings = () => customFetch<StorageSettings>("/api/admin/settings/storage", json("DELETE"));

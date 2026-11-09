@@ -5,12 +5,14 @@ A private, company-wide radio station. Admins upload audio and video (ads, jingl
 ## Features
 
 **Admin** (roles `admin`, `super_admin`)
-- **Media Library**: upload audio/video with progress, preview, rename, delete
+- **Media Library**: upload up to 5 audio/video files at a time with progress, preview, rename, delete
 - **Playlist**: add from the library, reorder, remove; go live / stop the station
-- **Listeners**: approve or decline new sign-ups; see 2FA status; deactivate/reactivate; reset 2FA
+- **Listeners**: approve or decline new sign-ups; see who's connected and listening now; sign people out; see 2FA status; deactivate/reactivate; reset 2FA
 - **Admin team** (super admin only): promote approved listeners to sub-admins and choose what each one manages
 - **Integrations**: uploaded media, and AzuraCast radio stations (see below); Spotify is planned
+- **Settings** (super admin only): choose where uploads are stored (see below)
 - **Dashboard**: station status and listener/media counts
+- **Appearance** (everyone): light, dark, or match the device; saved per browser
 
 **Listener** (role `user`)
 - Open self sign-up with any email, then mandatory authenticator-app 2FA. They see a "waiting for approval" screen until an admin approves them; declined accounts can't sign in
@@ -28,7 +30,15 @@ A private, company-wide radio station. Admins upload audio and video (ads, jingl
 
 The playlist plays as an endless loop anchored to the moment the station went live (`station_state.started_at`). `GET /api/station/now-playing` tells each listener which item is on and how many seconds in, and the player re-syncs every 15 seconds. When the admin edits the playlist, the anchor is shifted so the item currently playing carries on without a jump.
 
+**Playback** settings on the Playlist page apply to every listener:
+- **Crossfade** (0–12 seconds) starts each item that many seconds before the previous one ends, fading one out and the other in. The schedule includes the overlap, so listeners stay in sync. It's capped at half the length of either item, and a one-item playlist doesn't fade into itself. iOS and iPadOS don't let pages change volume, so players there cut cleanly at the same moment.
+- **Gapless** (on by default) has each player load the next item about 30 seconds early on a second player, then start it on time. With it off and no crossfade, the next item loads when the current one ends, which can leave a short gap.
+
 Audio/video is served by `GET /api/media/:id/stream` with HTTP Range support. Browsers' media elements can't send an `Authorization` header, so stream URLs carry a short-lived signed token scoped to that one file.
+
+### Who's connected
+
+**Listeners → Connected** lists listeners with the Listen page open, marked **Listening** when they're tuned in, and the Dashboard shows how many are listening. The player's regular now-playing checks (every 10–15 seconds) are the signal, so people drop off about a minute after closing the page. This is kept in the server's memory, so it's per instance: another reason to run one instance. From the list you can **Sign out** someone (they can sign in again) or **Deactivate** them. Either stops their player within about 30 seconds.
 
 ### AzuraCast
 
@@ -38,6 +48,16 @@ Instead of the playlist, the station can play a live [AzuraCast](https://www.azu
 - Keep the AzuraCast station **non-public** (or firewall it to this server). Otherwise anyone who finds its address can listen without signing in to MusicStream.
 - Every listener uses one connection from this server to AzuraCast, so bandwidth grows with the audience (about 1 MB per minute per listener at 128 kbps).
 - The stream and artwork must be on the same host as the configured AzuraCast address. The server doesn't follow redirects, and the API key is stored encrypted.
+
+### Media storage
+
+The super admin chooses where uploads go under **Settings → Storage**: DigitalOcean Spaces, Amazon S3, Cloudflare R2, Backblaze B2, Wasabi, Google Cloud Storage (with an HMAC key), any other S3-compatible service such as MinIO, or this server's disk. Presets work out the storage URL from the region or account; for other services you enter it.
+
+- **Test and save** writes, reads back and deletes a small file, so a wrong key or bucket is caught before any upload goes there. The key must be able to read, write and delete in the bucket.
+- Until something is saved there, the `STORAGE_DRIVER` and `S3_*` environment variables decide. **Use server settings** goes back to them.
+- Files aren't moved. Each file remembers its location (`media_files.storage_backend_id`) and keeps playing from it, so keep an old bucket and its key working while any file there is still in use.
+- The secret key is stored encrypted and never sent back to the browser. A blank secret keeps the saved one only for the same storage URL and access key.
+- Listeners always stream through this server, so buckets stay private.
 
 ### Spotify
 
@@ -62,7 +82,11 @@ models/<Model>.ts                   Sequelize model (registered in models/index.
 migrations/NNN-<name>.cjs           raw-SQL schema changes, run by sequelize-cli
 ```
 
-Media files go through `lib/storage.ts`. `STORAGE_DRIVER=local` (default) keeps them under `UPLOAD_DIR`; `STORAGE_DRIVER=s3` stores them in an S3-compatible bucket such as DigitalOcean Spaces. Either way, the API streams them to listeners, so the bucket stays private.
+Media files go through `lib/storage.ts`, and `controllers/StorageController.ts` picks the location for each file: the one saved under Settings, or otherwise the environment (`STORAGE_DRIVER=local` keeps files under `UPLOAD_DIR`, `STORAGE_DRIVER=s3` uses an S3-compatible bucket). Either way, the API streams them to listeners, so the bucket stays private.
+
+### Look and feel
+
+The colours follow MedPlus (medplusnig.com): pink `#FF0077`, the purple-to-pink gradient (`#9A00D9` to `#FF3A9C`) on the sign-in panel and brand tiles, near-white pages and grey text. Buttons and links use a deeper pink (`#E00069`) so small white text on them meets contrast guidelines. The theme tokens are in `frontend/src/index.css`; dark mode redefines them under `.dark`, which `ThemeProvider` (`src/hooks/use-theme.tsx`) sets from **Settings → Appearance**. A small script in `index.html` applies the saved theme before the page paints.
 
 ### Frontend layout
 
@@ -126,7 +150,7 @@ The app runs on **App Platform** as a single web service, with **Managed Postgre
    |---|---|
    | `NODE_ENV` | `production` |
    | `DATABASE_URL` | `${db.DATABASE_URL}` |
-   | `DATABASE_CA_CERT` | `${db.CA_CERT}` |
+   | `DATABASE_CERT` | `${db.CA_CERT}` (without it the connection is encrypted but the server certificate isn't checked) |
    | `JWT_SECRET` (encrypt) | `openssl rand -base64 48` (the server won't start with fewer than 32 characters) |
    | `SECRET_ENCRYPTION_KEY` (encrypt) | `openssl rand -base64 32`. Keep it forever; changing it makes everyone set up 2FA again. |
    | `STORAGE_DRIVER` | `s3` |
@@ -149,14 +173,13 @@ If the first migration fails with `permission denied for schema public`, the dat
 
 See `backend/.env.example` (local defaults) and the table above (production):
 - `DATABASE_URL` - PostgreSQL connection string. SSL is on automatically for any non-local host. `ssl*` options in the URL are ignored; use the settings below.
-- `DATABASE_CA_CERT` - the database's CA certificate (PEM text); when set, the server certificate is verified
-- `DATABASE_SSL` - `true` / `false` to force SSL on or off
+- `DATABASE_CERT` - the database's CA certificate (PEM text, not a file path); when set, the server certificate is verified
 - `PORT` - port the server listens on (App Platform sets this)
 - `FRONTEND_PORT` - Vite dev server port in development (default 5000)
 - `JWT_SECRET` - JWT signing secret, 32+ characters in production
 - `SECRET_ENCRYPTION_KEY` - optional key for encrypting 2FA secrets and the AzuraCast API key at rest; defaults to one derived from `JWT_SECRET`. Changing either later invalidates everyone's 2FA setup.
 - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` - first admin account, used by `npm run db:seed` / `npm run release`
-- `STORAGE_DRIVER` - `local` (default) or `s3`
+- `STORAGE_DRIVER` - `local` (default) or `s3`; used until a location is saved under Settings
 - `UPLOAD_DIR` - local media folder, and temp space for uploads with `s3` (default `./uploads`, relative to `backend/`)
 - `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` - bucket settings for `STORAGE_DRIVER=s3`; optional `S3_PREFIX` (folder inside the bucket), `S3_REGION`, `S3_FORCE_PATH_STYLE`
 - `MAX_UPLOAD_MB` - per-file upload limit (default 500)

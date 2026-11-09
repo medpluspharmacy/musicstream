@@ -8,7 +8,7 @@ import { login as loginRequest, errorMessage, type PendingSignIn } from "@/lib";
 import { landingPath } from "@/lib/roles";
 
 const NOTICES: Record<string, string> = {
-  session_replaced: "You were signed out because your account signed in elsewhere.",
+  session_replaced: "You were signed out, either because your account signed in elsewhere or because an admin ended your session.",
   session_expired: "Your session expired. Please sign in again.",
   idle_timeout: "You were signed out after a period of inactivity.",
 };

@@ -1,21 +1,102 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, ListMusic, Music, Play, Radio, Square, Trash2, Video } from "lucide-react";
 import {
   listPlaylist, listMedia, addToPlaylist, removeFromPlaylist, reorderPlaylist,
-  getStationStatus, startStation, stopStation, getNowPlaying, setStationSource, errorMessage,
-  type StationSource,
+  getStationStatus, startStation, stopStation, getNowPlaying, setStationSource, setPlayback, errorMessage,
+  type PlaybackSettings, type StationSource,
 } from "@/lib";
 import { formatDuration } from "@/lib/format";
 import { useToast } from "@/hooks/use-toast";
 import { Button, Card, EmptyState, PageHeader } from "@/components/shared";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+
+const CROSSFADE_SAVE_DELAY_MS = 400;
+
+function PlaybackCard() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: status } = useQuery({ queryKey: ["station"], queryFn: getStationStatus });
+  const saved = status?.playback;
+  // The slider moves freely and saves once it settles, so several arrow-key
+  // presses become one save instead of each being lost to the one before.
+  const [crossfade, setCrossfade] = useState(saved?.crossfadeSeconds ?? 0);
+  const [pending, setPending] = useState<number | null>(null);
+  useEffect(() => { if (saved && pending === null) setCrossfade(saved.crossfadeSeconds); }, [saved?.crossfadeSeconds]);
+  const save = useMutation({
+    mutationFn: setPlayback,
+    onSuccess: (res) => {
+      qc.setQueryData(["station"], res);
+      qc.invalidateQueries({ queryKey: ["now-playing"] });
+    },
+    onError: (err) => {
+      if (saved) setCrossfade(saved.crossfadeSeconds);
+      toast({ title: "Couldn't save playback settings", description: errorMessage(err), variant: "destructive" });
+    },
+  });
+  useEffect(() => {
+    if (pending === null || !saved) return;
+    const timer = setTimeout(() => {
+      setPending(null);
+      if (pending !== saved.crossfadeSeconds) save.mutate({ ...saved, crossfadeSeconds: pending });
+    }, CROSSFADE_SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [pending]);
+  if (!saved) return null;
+  const update = (change: Partial<PlaybackSettings>) => save.mutate({ ...saved, crossfadeSeconds: crossfade, ...change });
+
+  return (
+    <Card className="p-6 mb-6">
+      <p className="font-semibold text-lg">Playback</p>
+      <p className="text-sm text-muted-foreground mt-1">
+        How the playlist plays for every listener. AzuraCast stations use their own settings.
+      </p>
+      <div className="mt-5 divide-y divide-border">
+        <div className="pb-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="sm:w-48 shrink-0">
+            <p className="font-medium">Crossfade</p>
+            <p className="text-xs text-muted-foreground">Overlap the end of each item with the next</p>
+          </div>
+          <div className="flex items-center gap-4 flex-1">
+            <Slider
+              value={[crossfade]}
+              min={0}
+              max={12}
+              step={1}
+              aria-label="Crossfade seconds"
+              onValueChange={([v]) => setCrossfade(v)}
+              onValueCommit={([v]) => setPending(v)}
+            />
+            <span className="w-14 text-sm tabular-nums text-right">{crossfade === 0 ? "Off" : `${crossfade} sec`}</span>
+          </div>
+        </div>
+        <div className="pt-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="font-medium">Gapless</p>
+            <p className="text-xs text-muted-foreground">Load the next item early so there's no silence between items</p>
+          </div>
+          <Switch
+            checked={saved.gapless}
+            disabled={save.isPending}
+            aria-label="Gapless playback"
+            onCheckedChange={(gapless) => update({ gapless })}
+          />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground mt-4">
+        Short items like jingles fade for at most half their length. iPhones and iPads switch items with a clean cut instead of a fade.
+      </p>
+    </Card>
+  );
+}
 
 function StationCard() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: status } = useQuery({ queryKey: ["station"], queryFn: getStationStatus });
-  const { data: now } = useQuery({ queryKey: ["now-playing"], queryFn: getNowPlaying, refetchInterval: 5_000 });
+  const { data: now } = useQuery({ queryKey: ["now-playing"], queryFn: () => getNowPlaying(), refetchInterval: 5_000 });
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["station"] });
     qc.invalidateQueries({ queryKey: ["now-playing"] });
@@ -136,6 +217,7 @@ export default function Playlist() {
     <div>
       <PageHeader title="Playlist" description="The universal playlist every listener hears, in this order." />
       <StationCard />
+      <PlaybackCard />
 
       <Card className="p-5 mb-6">
         {media.length === 0 ? (
