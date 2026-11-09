@@ -11,6 +11,7 @@ import {
   Plug,
   Settings,
   HardDrive,
+  Palette,
   LogOut,
   Menu,
   X,
@@ -67,7 +68,8 @@ const NAV_STRUCTURE: NavEntry[] = [
     icon: Settings,
     items: [
       { name: "Integrations", path: "/integrations", icon: Plug, access: "integrations" },
-      { name: "Storage", path: "/settings", icon: HardDrive, access: "super_admin" },
+      { name: "Storage", path: "/settings/storage", icon: HardDrive, access: "super_admin" },
+      { name: "Appearance", path: "/settings/appearance", icon: Palette, access: "everyone" },
     ],
   },
 ];

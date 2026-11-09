@@ -77,7 +77,7 @@ function StorageForm({ settings }: { settings: StorageSettings }) {
       </div>
 
       {provider.driver === "local" && (
-        <p className="text-sm rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3">
+        <p className="text-sm rounded-xl border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 px-4 py-3">
           Don't use this on DigitalOcean App Platform: its disk is wiped on every deploy, and the files go with it.
         </p>
       )}

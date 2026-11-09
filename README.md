@@ -12,6 +12,7 @@ A private, company-wide radio station. Admins upload audio and video (ads, jingl
 - **Integrations**: uploaded media, and AzuraCast radio stations (see below); Spotify is planned
 - **Settings** (super admin only): choose where uploads are stored (see below)
 - **Dashboard**: station status and listener/media counts
+- **Appearance** (everyone): light, dark, or match the device; saved per browser
 
 **Listener** (role `user`)
 - Open self sign-up with any email, then mandatory authenticator-app 2FA. They see a "waiting for approval" screen until an admin approves them; declined accounts can't sign in
@@ -82,6 +83,10 @@ migrations/NNN-<name>.cjs           raw-SQL schema changes, run by sequelize-cli
 ```
 
 Media files go through `lib/storage.ts`, and `controllers/StorageController.ts` picks the location for each file: the one saved under Settings, or otherwise the environment (`STORAGE_DRIVER=local` keeps files under `UPLOAD_DIR`, `STORAGE_DRIVER=s3` uses an S3-compatible bucket). Either way, the API streams them to listeners, so the bucket stays private.
+
+### Look and feel
+
+The colours follow MedPlus (medplusnig.com): pink `#FF0077`, the purple-to-pink gradient (`#9A00D9` to `#FF3A9C`) on the sign-in panel and brand tiles, near-white pages and grey text. Buttons and links use a deeper pink (`#E00069`) so small white text on them meets contrast guidelines. The theme tokens are in `frontend/src/index.css`; dark mode redefines them under `.dark`, which `ThemeProvider` (`src/hooks/use-theme.tsx`) sets from **Settings → Appearance**. A small script in `index.html` applies the saved theme before the page paints.
 
 ### Frontend layout
 

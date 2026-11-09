@@ -7,7 +7,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
   const { settings } = useAppSettings();
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
-      <div className="hidden lg:flex flex-col justify-end p-12 bg-gradient-to-br from-primary to-primary/60 text-primary-foreground">
+      <div className="hidden lg:flex flex-col justify-end p-12 bg-brand-gradient text-white">
         <h2 className="text-4xl font-bold max-w-md">{settings.loginHeadline}</h2>
         <p className="mt-4 max-w-md opacity-90">{settings.loginSubtext}</p>
       </div>

@@ -10,11 +10,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Button, Card, EmptyState, Input, PageHeader, StatusBadge } from "@/components/shared";
 
 const STATUS_COLORS = {
-  active: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  awaiting_approval: "bg-violet-100 text-violet-700 border-violet-200",
-  awaiting_2fa: "bg-amber-100 text-amber-700 border-amber-200",
-  declined: "bg-red-100 text-red-700 border-red-200",
-  deactivated: "bg-slate-100 text-slate-600 border-slate-200",
+  active: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30",
+  awaiting_approval: "bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/30",
+  awaiting_2fa: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30",
+  declined: "bg-red-100 text-red-700 border-red-200 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/30",
+  deactivated: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:border-slate-500/30",
 };
 
 function statusOf(u: User) {
@@ -27,8 +27,8 @@ function statusOf(u: User) {
 const isPending = (u: User) => u.isActive && u.approvalStatus === "pending";
 
 const PRESENCE_COLORS = {
-  listening: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  "on the page": "bg-slate-100 text-slate-600 border-slate-200",
+  listening: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30",
+  "on the page": "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:border-slate-500/30",
 };
 
 /** "3 min", "1 h 20 min": how long since `iso`. */

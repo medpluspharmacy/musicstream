@@ -379,11 +379,11 @@ export default function Listen() {
         ) : (
           <div className="p-6">
             {!isVideo && (
-              <div className="aspect-[3/1] rounded-2xl bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center mb-6 overflow-hidden">
+              <div className="aspect-[3/1] rounded-2xl bg-brand-gradient flex items-center justify-center mb-6 overflow-hidden">
                 {stream?.artUrl ? (
                   <img src={resolveApiUrl(stream.artUrl)} alt="" className="h-full aspect-square object-cover shadow-lg" />
                 ) : (
-                  <Music className="w-16 h-16 text-primary-foreground/80" />
+                  <Music className="w-16 h-16 text-white/85" />
                 )}
               </div>
             )}
@@ -393,7 +393,7 @@ export default function Listen() {
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /> Live
                   {stream && <span className="normal-case tracking-normal font-medium text-muted-foreground">· {stream.stationName}</span>}
                   {stream?.liveDj && (
-                    <span className="normal-case tracking-normal rounded-full bg-red-500/10 text-red-600 px-2 py-0.5">DJ {stream.liveDj}</span>
+                    <span className="normal-case tracking-normal rounded-full bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-0.5">DJ {stream.liveDj}</span>
                   )}
                 </p>
                 <p className="text-2xl font-bold mt-1 truncate flex items-center gap-2">

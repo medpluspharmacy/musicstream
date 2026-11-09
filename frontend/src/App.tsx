@@ -19,6 +19,8 @@ import Listeners from "@/pages/listeners";
 import Team from "@/pages/team";
 import Integrations from "@/pages/integrations";
 import Settings from "@/pages/settings";
+import Appearance from "@/pages/appearance";
+import { ThemeProvider } from "@/hooks/use-theme";
 import Listen from "@/pages/listen";
 
 const queryClient = new QueryClient({
@@ -47,7 +49,8 @@ const PAGES: [string, React.ComponentType, Access][] = [
   ["/listeners", Listeners, "listeners"],
   ["/team", Team, "super_admin"],
   ["/integrations", Integrations, "integrations"],
-  ["/settings", Settings, "super_admin"],
+  ["/settings/storage", Settings, "super_admin"],
+  ["/settings/appearance", Appearance, "everyone"],
 ];
 
 function Router() {
@@ -77,6 +80,7 @@ function Router() {
 
 function App() {
   return (
+    <ThemeProvider>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
@@ -89,6 +93,7 @@ function App() {
         </WouterRouter>
       </TooltipProvider>
     </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 

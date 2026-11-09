@@ -150,7 +150,7 @@ function UploadCard() {
           </ul>
         )}
 
-        {notice && <p className="text-sm text-amber-700">{notice}</p>}
+        {notice && <p className="text-sm text-amber-700 dark:text-amber-400">{notice}</p>}
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={picked.length === 0} isLoading={uploading}>
             {picked.length > 1 ? `Upload ${picked.length} files` : "Upload"}

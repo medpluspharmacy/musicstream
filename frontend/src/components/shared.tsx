@@ -27,7 +27,7 @@ export function Card({ children, className = "", onClick, ...rest }: { children:
 }
 
 export function StatusBadge({ status, colors = {} }: { status: string, colors?: Record<string, string> }) {
-  const colorClass = colors[status] ?? "bg-gray-100 text-gray-700 border-gray-200";
+  const colorClass = colors[status] ?? "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-500/15 dark:text-gray-300 dark:border-gray-500/30";
   const formattedStatus = status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
   return (
