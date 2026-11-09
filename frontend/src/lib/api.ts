@@ -38,6 +38,8 @@ export interface DashboardSummary {
   newListenersThisWeek: number;
   mediaCount: number;
   pendingApproval: number;
+  /** Listeners tuned in right now. */
+  listeningNow: number;
   station: StationStatus;
 }
 
@@ -146,6 +148,18 @@ export const setListenerActive = (id: number, isActive: boolean) =>
 export const resetListener2FA = (id: number) => customFetch<User>(`/api/admin/listeners/${id}/reset-2fa`, json("POST"));
 export const approveListener = (id: number) => customFetch<User>(`/api/admin/listeners/${id}/approve`, json("POST"));
 export const declineListener = (id: number) => customFetch<User>(`/api/admin/listeners/${id}/decline`, json("POST"));
+export interface ConnectedListener {
+  id: number;
+  name: string;
+  email: string;
+  /** True when tuned in; false when the Listen page is open but not playing. */
+  listening: boolean;
+  connectedSince: string;
+  listeningSince: string | null;
+  lastSeenAt: string;
+}
+export const listConnectedListeners = () => customFetch<ConnectedListener[]>("/api/admin/listeners/connected");
+export const signOutListener = (id: number) => customFetch<User>(`/api/admin/listeners/${id}/sign-out`, json("POST"));
 
 // --- admin team (super admin only)
 export const listAdmins = () => customFetch<User[]>("/api/admin/team");
@@ -197,7 +211,9 @@ export const startStation = () => customFetch<StationStatus>("/api/admin/station
 export const stopStation = () => customFetch<StationStatus>("/api/admin/station/stop", json("POST"));
 export const setStationSource = (source: StationSource) =>
   customFetch<StationStatus>("/api/admin/station/source", json("PUT", { source }));
-export const getNowPlaying = () => customFetch<NowPlaying>("/api/station/now-playing");
+/** `listening` tells the server the player is tuned in, for the admins' Connected list. */
+export const getNowPlaying = (listening = false) =>
+  customFetch<NowPlaying>(`/api/station/now-playing${listening ? "?listening=1" : ""}`);
 
 // --- integrations
 export interface AzuraCastConnection {

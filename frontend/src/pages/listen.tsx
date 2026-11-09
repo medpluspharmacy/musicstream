@@ -25,14 +25,17 @@ export default function Listen() {
   const { user, refreshUser } = useAuth();
   // New sign-ups can't listen until an admin approves them; the server enforces this too.
   const waiting = user?.role === "user" && user.approvalStatus !== "approved";
+  // Read by each poll, so tuning in doesn't restart the query.
+  const tunedInRef = useRef(false);
   const { data, dataUpdatedAt, refetch } = useQuery({
     queryKey: ["now-playing"],
-    queryFn: getNowPlaying,
+    queryFn: () => getNowPlaying(tunedInRef.current),
     enabled: !waiting,
     // Live streams change track on their own schedule, so check a little more often.
     refetchInterval: q => (q.state.data?.stream ? 10_000 : 15_000),
   });
   const [tunedIn, setTunedIn] = useState(false);
+  tunedInRef.current = tunedIn;
   const [blocked, setBlocked] = useState(false);
   const [volume, setVolume] = useState(readVolume);
   const [muted, setMuted] = useState(false);

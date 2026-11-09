@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Radio, Users, Library, UserCheck, ShieldAlert, UserPlus, ArrowRight } from "lucide-react";
+import { Radio, Users, Library, UserCheck, ShieldAlert, UserPlus, ArrowRight, Headphones } from "lucide-react";
 import { getDashboardSummary } from "@/lib";
 import { formatDuration } from "@/lib/format";
 import { useAuth } from "@/hooks/use-auth";
@@ -65,6 +65,7 @@ export default function Dashboard() {
       </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Stat label="Listening now" value={v(data?.listeningNow)} icon={Headphones} href={listenersHref} />
         <Stat label="Waiting for approval" value={v(data?.pendingApproval)} icon={UserCheck} href={listenersHref} />
         <Stat label="Listeners" value={v(data?.listeners)} icon={Users} href={listenersHref} />
         <Stat label="Ready to listen" value={v(data?.activeListeners)} icon={Radio} href={listenersHref} />

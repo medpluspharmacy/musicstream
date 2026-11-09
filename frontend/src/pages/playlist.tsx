@@ -15,7 +15,7 @@ function StationCard() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: status } = useQuery({ queryKey: ["station"], queryFn: getStationStatus });
-  const { data: now } = useQuery({ queryKey: ["now-playing"], queryFn: getNowPlaying, refetchInterval: 5_000 });
+  const { data: now } = useQuery({ queryKey: ["now-playing"], queryFn: () => getNowPlaying(), refetchInterval: 5_000 });
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["station"] });
     qc.invalidateQueries({ queryKey: ["now-playing"] });

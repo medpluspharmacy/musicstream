@@ -7,7 +7,7 @@ A private, company-wide radio station. Admins upload audio and video (ads, jingl
 **Admin** (roles `admin`, `super_admin`)
 - **Media Library**: upload audio/video with progress, preview, rename, delete
 - **Playlist**: add from the library, reorder, remove; go live / stop the station
-- **Listeners**: approve or decline new sign-ups; see 2FA status; deactivate/reactivate; reset 2FA
+- **Listeners**: approve or decline new sign-ups; see who's connected and listening now; sign people out; see 2FA status; deactivate/reactivate; reset 2FA
 - **Admin team** (super admin only): promote approved listeners to sub-admins and choose what each one manages
 - **Integrations**: uploaded media, and AzuraCast radio stations (see below); Spotify is planned
 - **Settings** (super admin only): choose where uploads are stored (see below)
@@ -30,6 +30,10 @@ A private, company-wide radio station. Admins upload audio and video (ads, jingl
 The playlist plays as an endless loop anchored to the moment the station went live (`station_state.started_at`). `GET /api/station/now-playing` tells each listener which item is on and how many seconds in, and the player re-syncs every 15 seconds. When the admin edits the playlist, the anchor is shifted so the item currently playing carries on without a jump.
 
 Audio/video is served by `GET /api/media/:id/stream` with HTTP Range support. Browsers' media elements can't send an `Authorization` header, so stream URLs carry a short-lived signed token scoped to that one file.
+
+### Who's connected
+
+**Listeners → Connected** lists listeners with the Listen page open, marked **Listening** when they're tuned in, and the Dashboard shows how many are listening. The player's regular now-playing checks (every 10–15 seconds) are the signal, so people drop off about a minute after closing the page. This is kept in the server's memory, so it's per instance: another reason to run one instance. From the list you can **Sign out** someone (they can sign in again) or **Deactivate** them. Either stops their player within about 30 seconds.
 
 ### AzuraCast
 
