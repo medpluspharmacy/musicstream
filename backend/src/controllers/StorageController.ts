@@ -56,9 +56,14 @@ export default class StorageController {
 
   /** Where a file lives, which may not be where new uploads go any more. */
   static async forMedia(media: MediaFile): Promise<MediaStorage> {
-    if (media.storageBackendId == null) return environmentStorage;
-    const row = await StorageBackend.findByPk(media.storageBackendId);
-    if (!row) throw new Error(`Storage location ${media.storageBackendId} is missing`);
+    return StorageController.forBackend(media.storageBackendId);
+  }
+
+  /** The storage for a saved location id; null means the environment settings. */
+  static async forBackend(backendId: number | null): Promise<MediaStorage> {
+    if (backendId == null) return environmentStorage;
+    const row = await StorageBackend.findByPk(backendId);
+    if (!row) throw new Error(`Storage location ${backendId} is missing`);
     return storageFor(row);
   }
 

@@ -8,6 +8,7 @@ import stationRouter from "./station";
 import integrationsRouter from "./integrations";
 import teamRouter from "./team";
 import settingsRouter from "./settings";
+import brandingRouter from "./branding";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(stationRouter);
 router.use(integrationsRouter);
 router.use(teamRouter);
 router.use(settingsRouter);
+router.use(brandingRouter);
 
 export default router;

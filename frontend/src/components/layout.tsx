@@ -23,7 +23,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { User } from "@/lib";
 import { canAccess, roleLabel, type Access } from "@/lib/roles";
 import { useAppSettings } from "@/hooks/use-app-settings";
-import { BrandMark } from "@/components/brand-mark";
+import { BrandLockup } from "@/components/brand-mark";
 
 interface NavItem {
   name: string;
@@ -225,6 +225,21 @@ function UserFooter({ user, onLogout }: { user: User; onLogout: () => void }) {
   );
 }
 
+/**
+ * The sidebar's background picture, darkened so the menu stays readable. The
+ * sidebar switches to the dark colours whenever it has one, in either theme.
+ */
+function SidebarBackground({ image }: { image: string | null }) {
+  if (!image) return null;
+  return (
+    <>
+      {/* Blurred and darkened: pictures often carry their own text, which would compete with the menu. */}
+      <div className="absolute -inset-4 bg-cover bg-center blur-md saturate-50" style={{ backgroundImage: `url("${image}")` }} aria-hidden data-sidebar-bg />
+      <div className="absolute inset-0 bg-black/75" aria-hidden />
+    </>
+  );
+}
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const { settings } = useAppSettings();
@@ -234,17 +249,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <aside className="hidden sm:flex flex-col w-64 shrink-0 border-r border-border bg-card sticky top-0 h-screen">
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
-          <BrandMark logoUrl={settings.logoUrl} letter={settings.logoLetter} companyName={settings.companyName} size="md" />
-          <span className="font-bold text-xl tracking-tight">{settings.companyName}</span>
+      <aside className={`hidden sm:flex flex-col w-64 shrink-0 border-r border-border bg-card sticky top-0 h-screen relative overflow-hidden ${settings.sidebarImage ? "dark text-foreground" : ""}`}>
+        <SidebarBackground image={settings.sidebarImage} />
+        <div className="relative flex items-center gap-3 px-6 py-5 border-b border-border">
+          <BrandLockup logoUrl={settings.logoUrl} letter={settings.logoLetter} companyName={settings.companyName} size="md" />
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-3">
+        <div className="relative flex-1 overflow-y-auto px-3 py-3">
           <NavLinks user={user} />
         </div>
 
-        <UserFooter user={user} onLogout={logout} />
+        <div className="relative"><UserFooter user={user} onLogout={logout} /></div>
       </aside>
 
       <AnimatePresence>
@@ -264,23 +279,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 220 }}
-              className="fixed top-0 left-0 h-full w-72 z-50 flex flex-col bg-card border-r border-border shadow-2xl sm:hidden"
+              className={`fixed top-0 left-0 h-full w-72 z-50 flex flex-col bg-card border-r border-border shadow-2xl sm:hidden overflow-hidden ${settings.sidebarImage ? "dark text-foreground" : ""}`}
             >
-              <div className="flex items-center justify-between px-6 py-5 border-b border-border">
-                <div className="flex items-center gap-3">
-                  <BrandMark logoUrl={settings.logoUrl} letter={settings.logoLetter} companyName={settings.companyName} size="md" />
-                  <span className="font-bold text-xl tracking-tight">{settings.companyName}</span>
-                </div>
+              <SidebarBackground image={settings.sidebarImage} />
+              <div className="relative flex items-center justify-between px-6 py-5 border-b border-border">
+                <BrandLockup logoUrl={settings.logoUrl} letter={settings.logoLetter} companyName={settings.companyName} size="md" />
                 <button onClick={() => setSidebarOpen(false)} className="p-1 text-muted-foreground hover:text-foreground">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-3 py-3">
+              <div className="relative flex-1 overflow-y-auto px-3 py-3">
                 <NavLinks user={user} onNavigate={() => setSidebarOpen(false)} />
               </div>
 
-              <UserFooter user={user} onLogout={logout} />
+              <div className="relative"><UserFooter user={user} onLogout={logout} /></div>
             </motion.aside>
           </>
         )}
@@ -294,10 +307,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2">
-            <BrandMark logoUrl={settings.logoUrl} letter={settings.logoLetter} companyName={settings.companyName} size="sm" />
-            <span className="font-bold text-base tracking-tight">{settings.companyName}</span>
-          </div>
+          <BrandLockup logoUrl={settings.logoUrl} letter={settings.logoLetter} companyName={settings.companyName} size="sm" />
           <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center font-bold text-sm border border-border">
             {userInitial(user)}
           </div>

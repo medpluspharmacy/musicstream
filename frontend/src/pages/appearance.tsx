@@ -1,6 +1,9 @@
 import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { useTheme, type ThemePreference } from "@/hooks/use-theme";
 import { Card, PageHeader } from "@/components/shared";
+import { BrandingEditor } from "@/components/branding-editor";
+import { useAuth } from "@/hooks/use-auth";
+import { isSuperAdmin } from "@/lib/roles";
 
 const OPTIONS: { value: ThemePreference; label: string; description: string; icon: typeof Sun }[] = [
   { value: "light", label: "Light", description: "Light backgrounds", icon: Sun },
@@ -31,10 +34,11 @@ function Preview({ dark }: { dark: boolean }) {
 
 export default function Appearance() {
   const { preference, resolved, setPreference } = useTheme();
+  const { user } = useAuth();
 
   return (
     <div>
-      <PageHeader title="Appearance" description="How the dashboard looks on this device." />
+      <PageHeader title="Appearance" description={isSuperAdmin(user) ? "Your theme on this device, and the company's branding." : "How the dashboard looks on this device."} />
       <Card className="p-5 max-w-3xl">
         <p className="font-semibold">Theme</p>
         <div role="radiogroup" aria-label="Theme" className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -65,6 +69,7 @@ export default function Appearance() {
         </div>
         <p className="text-xs text-muted-foreground mt-4">Saved in this browser, so you can choose differently on each device.</p>
       </Card>
+      {isSuperAdmin(user) && <BrandingEditor />}
     </div>
   );
 }

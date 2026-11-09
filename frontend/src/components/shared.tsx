@@ -107,9 +107,9 @@ export function PasswordInput({ className = "", error, ...props }: Omit<React.In
   );
 }
 
-export function Label({ children, className = "" }: { children: ReactNode, className?: string }) {
+export function Label({ children, className = "", htmlFor }: { children: ReactNode, className?: string, htmlFor?: string }) {
   return (
-    <label className={`block text-sm font-semibold text-foreground mb-1.5 ${className}`}>
+    <label htmlFor={htmlFor} className={`block text-sm font-semibold text-foreground mb-1.5 ${className}`}>
       {children}
     </label>
   );

@@ -54,3 +54,34 @@ export function BrandMark({ logoUrl, letter, companyName, size, fallbackBg }: Br
     </div>
   );
 }
+
+/**
+ * The company's logo, or its initial and name when there's no logo. Logos are
+ * usually wordmarks that already contain the name, so the name isn't repeated
+ * beside them. The white chip keeps dark logos visible on dark backgrounds.
+ */
+export function BrandLockup({ logoUrl, letter, companyName, size, textClassName = "" }: {
+  logoUrl: string | null;
+  letter: string;
+  companyName: string;
+  size: "sm" | "md" | "lg";
+  textClassName?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [logoUrl]);
+  const height = { sm: "h-7", md: "h-10", lg: "h-14" }[size];
+  if (logoUrl && !failed) {
+    return (
+      <span className={`inline-flex items-center rounded-lg bg-white px-2 py-1 shadow-sm ring-1 ring-black/5 ${height}`}>
+        <img src={logoUrl} alt={companyName} onError={() => setFailed(true)} className="h-full w-auto max-w-[180px] object-contain" />
+      </span>
+    );
+  }
+  const text = { sm: "text-base", md: "text-xl", lg: "text-2xl" }[size];
+  return (
+    <span className="inline-flex items-center gap-3 min-w-0">
+      <BrandMark logoUrl={null} letter={letter} companyName={companyName} size={size} />
+      <span className={`font-bold tracking-tight truncate ${text} ${textClassName}`}>{companyName}</span>
+    </span>
+  );
+}

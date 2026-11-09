@@ -12,7 +12,7 @@ A private, company-wide radio station. Admins upload audio and video (ads, jingl
 - **Integrations**: uploaded media, and AzuraCast radio stations (see below); Spotify is planned
 - **Settings** (super admin only): choose where uploads are stored (see below)
 - **Dashboard**: station status and listener/media counts
-- **Appearance** (everyone): light, dark, or match the device; saved per browser
+- **Appearance** (everyone): light, dark, or match the device; saved per browser. The super admin also sets the company name, logo and background pictures here
 
 **Listener** (role `user`)
 - Open self sign-up with any email, then mandatory authenticator-app 2FA. They see a "waiting for approval" screen until an admin approves them; declined accounts can't sign in
@@ -87,6 +87,15 @@ Media files go through `lib/storage.ts`, and `controllers/StorageController.ts` 
 ### Look and feel
 
 The colours follow MedPlus (medplusnig.com): pink `#FF0077`, the purple-to-pink gradient (`#9A00D9` to `#FF3A9C`) on the sign-in panel and brand tiles, near-white pages and grey text. Buttons and links use a deeper pink (`#E00069`) so small white text on them meets contrast guidelines. The theme tokens are in `frontend/src/index.css`; dark mode redefines them under `.dark`, which `ThemeProvider` (`src/hooks/use-theme.tsx`) sets from **Settings → Appearance**. A small script in `index.html` applies the saved theme before the page paints.
+
+### Company branding
+
+The super admin sets the company name, logo and background pictures under **Settings → Appearance**. Everyone sees them, including on the sign-in page, so `GET /api/branding` and the images are public.
+
+- **Sign-in backgrounds** (up to 6) fill the panel beside the sign-in form and fade from one to the next every 6 seconds. They hold still for people who turn on reduced motion.
+- **App backgrounds**: one picture behind the sidebar, blurred and darkened so the menu stays readable, and one behind the Dashboard welcome banner.
+- The defaults are **Medplus Limited**: its logo and homepage banners, taken from medplusnig.com and shipped in `frontend/public/branding`. **Use Medplus defaults** goes back to them.
+- Uploads must be JPEG, PNG or WebP, up to 5 MB. The server checks the file's contents, not its name, and refuses SVG because it can carry scripts. Images go to the storage chosen under Settings → Storage and are served by random id from `/api/branding/assets/<id>`, a route that serves nothing else. Images taken out of use are deleted when the branding is saved, and uploads that were never saved are deleted after a day.
 
 ### Frontend layout
 

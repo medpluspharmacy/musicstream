@@ -4,6 +4,8 @@ import MediaFile from "./MediaFile.js";
 import PlaylistItem from "./PlaylistItem.js";
 import StationState from "./StationState.js";
 import StorageBackend from "./StorageBackend.js";
+import Branding from "./Branding.js";
+import BrandingAsset from "./BrandingAsset.js";
 
 PlaylistItem.belongsTo(MediaFile, { foreignKey: "mediaId", as: "media" });
 MediaFile.hasMany(PlaylistItem, { foreignKey: "mediaId", as: "playlistItems" });
@@ -15,4 +17,6 @@ export {
   PlaylistItem,
   StationState,
   StorageBackend,
+  Branding,
+  BrandingAsset,
 };
