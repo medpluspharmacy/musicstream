@@ -150,7 +150,7 @@ The app runs on **App Platform** as a single web service, with **Managed Postgre
    |---|---|
    | `NODE_ENV` | `production` |
    | `DATABASE_URL` | `${db.DATABASE_URL}` |
-   | `DATABASE_CA_CERT` | `${db.CA_CERT}` |
+   | `DATABASE_CERT` | `${db.CA_CERT}` (without it the connection is encrypted but the server certificate isn't checked) |
    | `JWT_SECRET` (encrypt) | `openssl rand -base64 48` (the server won't start with fewer than 32 characters) |
    | `SECRET_ENCRYPTION_KEY` (encrypt) | `openssl rand -base64 32`. Keep it forever; changing it makes everyone set up 2FA again. |
    | `STORAGE_DRIVER` | `s3` |
@@ -173,8 +173,7 @@ If the first migration fails with `permission denied for schema public`, the dat
 
 See `backend/.env.example` (local defaults) and the table above (production):
 - `DATABASE_URL` - PostgreSQL connection string. SSL is on automatically for any non-local host. `ssl*` options in the URL are ignored; use the settings below.
-- `DATABASE_CA_CERT` - the database's CA certificate (PEM text); when set, the server certificate is verified
-- `DATABASE_SSL` - `true` / `false` to force SSL on or off
+- `DATABASE_CERT` - the database's CA certificate (PEM text, not a file path); when set, the server certificate is verified
 - `PORT` - port the server listens on (App Platform sets this)
 - `FRONTEND_PORT` - Vite dev server port in development (default 5000)
 - `JWT_SECRET` - JWT signing secret, 32+ characters in production
