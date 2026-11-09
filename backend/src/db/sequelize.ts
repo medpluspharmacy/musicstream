@@ -10,7 +10,7 @@ if (!DATABASE_URL) {
 
 const { url, ssl } = databaseConfig(DATABASE_URL);
 if (ssl && !ssl.rejectUnauthorized) {
-  logger.warn("Database SSL is on but the server certificate isn't verified. Set DATABASE_CA_CERT to verify it.");
+  logger.warn("Database SSL is on but the server certificate isn't verified. Set DATABASE_CERT to verify it.");
 }
 
 export const sequelize = new Sequelize(url, {
