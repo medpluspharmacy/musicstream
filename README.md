@@ -5,7 +5,7 @@ A private, company-wide radio station. Admins upload audio and video (ads, jingl
 ## Features
 
 **Admin** (roles `admin`, `super_admin`)
-- **Media Library**: upload audio/video with progress, preview, rename, delete
+- **Media Library**: upload up to 5 audio/video files at a time with progress, preview, rename, delete
 - **Playlist**: add from the library, reorder, remove; go live / stop the station
 - **Listeners**: approve or decline new sign-ups; see who's connected and listening now; sign people out; see 2FA status; deactivate/reactivate; reset 2FA
 - **Admin team** (super admin only): promote approved listeners to sub-admins and choose what each one manages
