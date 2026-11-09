@@ -167,6 +167,7 @@ function StorageForm({ settings }: { settings: StorageSettings }) {
 function currentLocation(s: StorageSettings) {
   const name = s.providers.find(p => p.id === s.provider)?.name ?? s.provider;
   if (s.source === "environment" && s.provider === "custom") return `${s.bucket} (from the server's settings)`;
+  if (s.provider === "local") return `this server's disk${s.source === "environment" ? " (from the server's settings)" : ""}`;
   if (s.source === "environment") return `${name} (from the server's settings)`;
   return s.bucket ? `${name}: ${s.bucket}` : name;
 }
@@ -176,7 +177,7 @@ export default function Settings() {
 
   return (
     <div>
-      <PageHeader title="Settings" description="Where uploaded audio and video are kept." />
+      <PageHeader title="Storage" description="Where uploaded audio and video are kept." />
       <Card className="p-5 max-w-3xl">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">

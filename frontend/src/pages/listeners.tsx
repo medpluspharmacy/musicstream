@@ -86,7 +86,9 @@ function ConnectedTable({ people, search, onSignOut, onDeactivate, busy }: {
               <td className="px-5 py-3">
                 <StatusBadge status={c.listening ? "listening" : "on the page"} colors={PRESENCE_COLORS} />
                 {c.listening && c.listeningSince && (
-                  <p className="text-xs text-muted-foreground mt-1">for {since(c.listeningSince, now)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {since(c.listeningSince, now) === "just now" ? "just started" : `for ${since(c.listeningSince, now)}`}
+                  </p>
                 )}
               </td>
               <td className="px-5 py-3 hidden md:table-cell text-muted-foreground">{since(c.connectedSince, now)}</td>

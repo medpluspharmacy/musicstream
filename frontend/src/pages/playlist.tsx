@@ -13,14 +13,18 @@ import { Button, Card, EmptyState, PageHeader } from "@/components/shared";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 
+const CROSSFADE_SAVE_DELAY_MS = 400;
+
 function PlaybackCard() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: status } = useQuery({ queryKey: ["station"], queryFn: getStationStatus });
   const saved = status?.playback;
-  // The slider moves freely; it saves when let go.
+  // The slider moves freely and saves once it settles, so several arrow-key
+  // presses become one save instead of each being lost to the one before.
   const [crossfade, setCrossfade] = useState(saved?.crossfadeSeconds ?? 0);
-  useEffect(() => { if (saved) setCrossfade(saved.crossfadeSeconds); }, [saved?.crossfadeSeconds]);
+  const [pending, setPending] = useState<number | null>(null);
+  useEffect(() => { if (saved && pending === null) setCrossfade(saved.crossfadeSeconds); }, [saved?.crossfadeSeconds]);
   const save = useMutation({
     mutationFn: setPlayback,
     onSuccess: (res) => {
@@ -32,8 +36,16 @@ function PlaybackCard() {
       toast({ title: "Couldn't save playback settings", description: errorMessage(err), variant: "destructive" });
     },
   });
+  useEffect(() => {
+    if (pending === null || !saved) return;
+    const timer = setTimeout(() => {
+      setPending(null);
+      if (pending !== saved.crossfadeSeconds) save.mutate({ ...saved, crossfadeSeconds: pending });
+    }, CROSSFADE_SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [pending]);
   if (!saved) return null;
-  const update = (change: Partial<PlaybackSettings>) => save.mutate({ ...saved, ...change });
+  const update = (change: Partial<PlaybackSettings>) => save.mutate({ ...saved, crossfadeSeconds: crossfade, ...change });
 
   return (
     <Card className="p-6 mb-6">
@@ -54,9 +66,8 @@ function PlaybackCard() {
               max={12}
               step={1}
               aria-label="Crossfade seconds"
-              disabled={save.isPending}
               onValueChange={([v]) => setCrossfade(v)}
-              onValueCommit={([v]) => { if (v !== saved.crossfadeSeconds) update({ crossfadeSeconds: v }); }}
+              onValueCommit={([v]) => setPending(v)}
             />
             <span className="w-14 text-sm tabular-nums text-right">{crossfade === 0 ? "Off" : `${crossfade} sec`}</span>
           </div>
