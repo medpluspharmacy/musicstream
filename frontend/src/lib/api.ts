@@ -289,3 +289,40 @@ export const saveStorageSettings = (body: {
   accessKeyId: string; secretAccessKey?: string; forcePathStyle: boolean;
 }) => customFetch<StorageSettings>("/api/admin/settings/storage", json("PUT", body));
 export const resetStorageSettings = () => customFetch<StorageSettings>("/api/admin/settings/storage", json("DELETE"));
+
+// --- branding
+/** What every page shows: public, so the sign-in page can use it. */
+export interface Branding {
+  companyName: string;
+  logoUrl: string | null;
+  signInImages: string[];
+  sidebarImage: string | null;
+  bannerImage: string | null;
+}
+/** An image is referenced as "builtin:<file>" (shipped MedPlus images) or an uploaded image's id. */
+export interface BrandingImage {
+  ref: string;
+  url: string;
+  label: string;
+  builtin: boolean;
+}
+export interface BrandingChoices {
+  companyName: string;
+  logo: string | null;
+  signInImages: string[];
+  sidebarImage: string | null;
+  bannerImage: string | null;
+}
+export interface BrandingSettings extends BrandingChoices {
+  maxSignInImages: number;
+  library: BrandingImage[];
+  defaults: BrandingChoices;
+}
+export const getBranding = () => customFetch<Branding>("/api/branding");
+export const getBrandingSettings = () => customFetch<BrandingSettings>("/api/admin/branding");
+export const saveBranding = (body: BrandingChoices) => customFetch<BrandingSettings>("/api/admin/branding", json("PUT", body));
+export function uploadBrandingImage(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return customFetch<{ ref: string; url: string }>("/api/admin/branding/images", { method: "POST", body: form });
+}

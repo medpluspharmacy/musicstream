@@ -6,6 +6,24 @@ import { formatDuration } from "@/lib/format";
 import { useAuth } from "@/hooks/use-auth";
 import { can } from "@/lib/roles";
 import { Card, PageHeader } from "@/components/shared";
+import { useAppSettings } from "@/hooks/use-app-settings";
+
+/** The welcome banner, over the background picture chosen under Settings → Appearance. */
+function WelcomeBanner({ name }: { name: string }) {
+  const { settings } = useAppSettings();
+  if (!settings.bannerImage) return <PageHeader title="Dashboard" description={`Welcome back, ${name}`} />;
+  return (
+    <div className="relative overflow-hidden rounded-2xl mb-6 min-h-40 flex items-end" data-welcome-banner>
+      {/* Anchored right, where banners usually have their people or products; the left is darkened for the text. */}
+      <div className="absolute inset-0 bg-cover bg-right" style={{ backgroundImage: `url("${settings.bannerImage}")` }} aria-hidden />
+      <div className="absolute inset-0 bg-gradient-to-r from-black from-35% via-black/85 to-black/10" aria-hidden />
+      <div className="relative p-6 sm:p-8 text-white">
+        <p className="text-sm font-medium text-white/80">{settings.companyName}</p>
+        <h1 className="text-3xl font-bold mt-1">Welcome back, {name}</h1>
+      </div>
+    </div>
+  );
+}
 
 /** A stat card; it links to `href` only when the admin can open that page. */
 function Stat({ label, value, icon: Icon, href }: { label: string; value: number | string; icon: any; href?: string }) {
@@ -34,7 +52,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" description={`Welcome back, ${user?.name ?? ""}`} />
+      <WelcomeBanner name={user?.name ?? ""} />
 
       <Card className="p-6 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
