@@ -9,6 +9,7 @@ import { StartStationAction } from "../actions/station/StartStationAction.js";
 import { StopStationAction } from "../actions/station/StopStationAction.js";
 import { NowPlayingAction } from "../actions/station/NowPlayingAction.js";
 import { SetStationSourceAction } from "../actions/station/SetStationSourceAction.js";
+import { SetPlaybackAction } from "../actions/station/SetPlaybackAction.js";
 import { StreamLiveAction } from "../actions/station/StreamLiveAction.js";
 import { LiveArtAction } from "../actions/station/LiveArtAction.js";
 
@@ -23,6 +24,7 @@ router.get("/admin/station", requireAuth, requirePermission("station"), GetStati
 router.post("/admin/station/start", requireAuth, requirePermission("station"), StartStationAction.handle);
 router.post("/admin/station/stop", requireAuth, requirePermission("station"), StopStationAction.handle);
 router.put("/admin/station/source", requireAuth, requirePermission("station"), SetStationSourceAction.handle);
+router.put("/admin/station/playback", requireAuth, requirePermission("station"), SetPlaybackAction.handle);
 
 router.get("/station/now-playing", requireAuth, requireApproved, NowPlayingAction.handle);
 // Audio elements can't send headers; these check the signed live token in `t` instead.

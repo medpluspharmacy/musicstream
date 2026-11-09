@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Headphones, Music, Radio, Video, Volume2, VolumeX } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { getNowPlaying } from "@/lib";
+import { getNowPlaying, type MediaKind, type NowPlaying } from "@/lib";
 import { formatDuration } from "@/lib/format";
 import { resolveApiUrl } from "@/lib/utils";
 import { Button, Card, PageHeader } from "@/components/shared";
@@ -11,6 +11,34 @@ import { Slider } from "@/components/ui/slider";
 // Re-seek when the local player is this far from the station's position.
 const DRIFT_SECONDS = 3;
 const VOLUME_KEY = "musicstream.volume";
+// Start loading the next item this long before it's due.
+const PRELOAD_LEAD_MS = 30_000;
+const FADE_STEP_MS = 50;
+const HANDOFF_REFETCH_MS = 1_500;
+const HANDOFF_GRACE_MS = 4_000;
+
+// iOS and iPadOS ignore volume changes from pages, so crossfades become clean cuts there.
+const CAN_FADE = (() => {
+  try {
+    const probe = document.createElement("audio");
+    probe.volume = 0.5;
+    return probe.volume === 0.5;
+  } catch {
+    return false;
+  }
+})();
+
+interface Deck {
+  /** The playlist item loaded, "live" for the AzuraCast stream, or null. */
+  key: number | "live" | null;
+  kind: MediaKind;
+  /** Fade level from 0 to 1, multiplied by the listener's volume. */
+  gain: number;
+  fade: number | null;
+  ready: boolean;
+}
+
+const emptyDeck = (): Deck => ({ key: null, kind: "audio", gain: 1, fade: null, ready: false });
 
 function readVolume(): number {
   try {
@@ -40,12 +68,21 @@ export default function Listen() {
   const [volume, setVolume] = useState(readVolume);
   const [muted, setMuted] = useState(false);
   const [position, setPosition] = useState(0);
-  const mediaRef = useRef<HTMLVideoElement>(null);
-  // The playlist item loaded in the player, or "live" for the AzuraCast stream.
-  const loadedItemRef = useRef<number | "live" | null>(null);
+  // Two players ("decks"): the active one plays the current item, the spare loads
+  // the next item early so it can start exactly on time, fading in over a crossfade.
+  const deckRefs = [useRef<HTMLVideoElement>(null), useRef<HTMLVideoElement>(null)];
+  const decksRef = useRef<Deck[]>([emptyDeck(), emptyDeck()]);
+  const activeRef = useRef(0);
+  const [active, setActive] = useState(0);
+  const timersRef = useRef<number[]>([]);
+  // The last timed handoff, so a poll that lands a moment early doesn't undo it.
+  const handoffRef = useRef<{ itemId: number; at: number } | null>(null);
+  const volumeRef = useRef({ volume, muted });
+  volumeRef.current = { volume, muted };
   const [, setTick] = useState(0);
 
   const current = data?.current ?? null;
+  const next = data?.next ?? null;
   const stream = data?.stream ?? null;
   const loadKey = stream ? "live" : current?.itemId ?? null;
 
@@ -56,59 +93,189 @@ export default function Listen() {
     return () => clearInterval(timer);
   }, [!!stream]);
 
+  function el(i: number) {
+    return deckRefs[i].current;
+  }
+
+  function applyVolume(i: number) {
+    const e = el(i);
+    if (!e) return;
+    const { volume: v, muted: m } = volumeRef.current;
+    e.volume = CAN_FADE ? v * decksRef.current[i].gain : v;
+    e.muted = m;
+  }
+
+  function stopFade(i: number) {
+    const d = decksRef.current[i];
+    if (d.fade !== null) { clearInterval(d.fade); d.fade = null; }
+  }
+
+  /** Moves a deck's volume to `to` over `seconds`, then runs `done`. */
+  function fade(i: number, to: number, seconds: number, done?: () => void) {
+    stopFade(i);
+    const d = decksRef.current[i];
+    if (!CAN_FADE || seconds <= 0) { d.gain = to; applyVolume(i); done?.(); return; }
+    const from = d.gain;
+    const started = Date.now();
+    d.fade = window.setInterval(() => {
+      const t = Math.min(1, (Date.now() - started) / (seconds * 1000));
+      d.gain = from + (to - from) * t;
+      applyVolume(i);
+      if (t >= 1) { stopFade(i); done?.(); }
+    }, FADE_STEP_MS);
+  }
+
+  function unload(i: number) {
+    const e = el(i);
+    stopFade(i);
+    decksRef.current[i] = emptyDeck();
+    if (!e) return;
+    e.pause();
+    e.onloadedmetadata = null;
+    e.removeAttribute("src");
+    e.load();
+  }
+
+  const play = (i: number) => {
+    const e = el(i);
+    if (!e) return;
+    e.play().then(() => setBlocked(false)).catch(() => { if (i === activeRef.current) setBlocked(true); });
+  };
+
+  /** Loads an item into a deck. With `at`, seeks there and plays; without, waits paused at the start. */
+  function load(i: number, item: { itemId: number; kind: MediaKind; streamUrl: string }, at: (() => number) | null, gain = 1) {
+    const e = el(i);
+    if (!e) return;
+    stopFade(i);
+    decksRef.current[i] = { key: item.itemId, kind: item.kind, gain, fade: null, ready: false };
+    applyVolume(i);
+    e.src = resolveApiUrl(item.streamUrl);
+    e.onloadedmetadata = () => {
+      decksRef.current[i].ready = true;
+      if (at) {
+        e.currentTime = Math.min(at(), Math.max(e.duration - 0.25, 0));
+        play(i);
+      }
+    };
+  }
+
+  function makeActive(i: number) {
+    activeRef.current = i;
+    setActive(i);
+  }
+
+  /** Starts the next item on the spare deck at its scheduled time, crossfading if set. */
+  function handOff(item: NonNullable<NowPlaying["next"]>, fadeSeconds: number, scheduledAt: number) {
+    const from = activeRef.current;
+    const to = 1 - from;
+    const late = () => Math.max(0, (Date.now() - scheduledAt) / 1000);
+    const crossfade = CAN_FADE && fadeSeconds > 0;
+    const spare = decksRef.current[to];
+    if (spare.key === item.itemId && spare.ready) {
+      const e = el(to)!;
+      spare.gain = crossfade ? 0 : 1;
+      applyVolume(to);
+      e.currentTime = late();
+      play(to);
+    } else {
+      load(to, item, late, crossfade ? 0 : 1);
+    }
+    if (crossfade) fade(to, 1, fadeSeconds);
+    makeActive(to);
+    handoffRef.current = { itemId: item.itemId, at: Date.now() };
+    // The outgoing item plays out its last seconds under the new one, or stops at once.
+    if (crossfade) fade(from, 0, fadeSeconds, () => unload(from));
+    else unload(from);
+    // Fetch the new schedule once the station has moved on.
+    timersRef.current.push(window.setTimeout(() => refetch(), HANDOFF_REFETCH_MS));
+  }
+
   // Keep the local player locked to the station: the playlist by its clock, the live stream as-is.
   useEffect(() => {
-    const el = mediaRef.current;
-    if (!el) return;
-    const unload = () => {
-      el.pause();
-      loadedItemRef.current = null;
-      el.onloadedmetadata = null;
-      el.removeAttribute("src");
-      el.load();
-    };
-    if (loadKey === null) { unload(); return; }
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+    const a = activeRef.current;
+    const spare = 1 - a;
+    if (loadKey === null) { unload(0); unload(1); return; }
     // A paused live stream would resume from stale buffer, so drop it and reconnect on tune-in.
-    if (!tunedIn) { if (stream) unload(); else el.pause(); return; }
-
-    const play = () => el.play().then(() => setBlocked(false)).catch(() => setBlocked(true));
+    if (!tunedIn) {
+      if (stream) unload(a); else el(a)?.pause();
+      unload(spare);
+      return;
+    }
 
     if (stream) {
-      if (loadedItemRef.current !== "live") {
-        loadedItemRef.current = "live";
-        el.onloadedmetadata = null;
-        el.src = resolveApiUrl(stream.streamUrl);
-        play();
-      } else if (el.paused) {
-        play();
+      unload(spare);
+      if (decksRef.current[a].key !== "live") {
+        decksRef.current[a] = { key: "live", kind: "audio", gain: 1, fade: null, ready: false };
+        const e = el(a)!;
+        e.onloadedmetadata = null;
+        applyVolume(a);
+        e.src = resolveApiUrl(stream.streamUrl);
+        play(a);
+      } else if (el(a)?.paused) {
+        play(a);
       }
       return;
     }
     if (!current) return;
 
     const expected = () => current.offsetSeconds + (Date.now() - dataUpdatedAt) / 1000;
+    // Gain for joining partway through a crossfade.
+    const joinGain = () => (CAN_FADE && current.fadeInSeconds > 0 ? Math.min(1, expected() / current.fadeInSeconds) : 1);
 
-    if (loadedItemRef.current !== current.itemId) {
-      loadedItemRef.current = current.itemId;
-      el.src = resolveApiUrl(current.streamUrl);
-      el.onloadedmetadata = () => {
-        el.currentTime = Math.min(expected(), Math.max(el.duration - 0.25, 0));
-        play();
-      };
-      return;
+    const recent = handoffRef.current;
+    const justHandedOff = recent && Date.now() - recent.at < HANDOFF_GRACE_MS;
+    if (justHandedOff && recent.itemId !== current.itemId && current.nextStartsInSeconds < HANDOFF_GRACE_MS / 1000) {
+      // This poll was answered just before the station moved on; the handoff is already right.
+    } else if (decksRef.current[a].key === current.itemId) {
+      // Same item: the station may have looped back to it, or we drifted.
+      const e = el(a)!;
+      if (decksRef.current[a].ready && (e.ended || Math.abs(e.currentTime - expected()) > DRIFT_SECONDS)) {
+        e.currentTime = Math.min(expected(), Math.max(e.duration - 0.25, 0));
+      }
+      if (e.paused) play(a);
+    } else if (decksRef.current[spare].key === current.itemId && decksRef.current[spare].ready) {
+      // The handoff was missed (e.g. a sleeping tab): start the preloaded item where the station is.
+      const e = el(spare)!;
+      decksRef.current[spare].gain = joinGain();
+      applyVolume(spare);
+      e.currentTime = Math.min(expected(), Math.max(e.duration - 0.25, 0));
+      play(spare);
+      if (decksRef.current[spare].gain < 1) fade(spare, 1, current.fadeInSeconds - expected());
+      makeActive(spare);
+      unload(a);
+    } else {
+      unload(spare);
+      load(a, current, expected, joinGain());
+      if (joinGain() < 1) fade(a, 1, Math.max(0, current.fadeInSeconds - expected()));
     }
-    // Same item: the station may have looped back to it, or we drifted.
-    if (el.ended || Math.abs(el.currentTime - expected()) > DRIFT_SECONDS) {
-      el.currentTime = Math.min(expected(), Math.max(el.duration - 0.25, 0));
-    }
-    if (el.paused) play();
+
+    // Load the next item early and start it on time. Without this, the next item
+    // loads after the current one ends, leaving a short gap.
+    const early = data!.gapless || current.fadeOutSeconds > 0;
+    if (!early || !next || next.itemId === current.itemId) return;
+    const startsAt = dataUpdatedAt + current.nextStartsInSeconds * 1000;
+    const prepare = () => {
+      const s = 1 - activeRef.current;
+      if (decksRef.current[s].key !== next.itemId) load(s, next, null);
+    };
+    const prepareIn = startsAt - PRELOAD_LEAD_MS - Date.now();
+    if (prepareIn <= 0) prepare();
+    else timersRef.current.push(window.setTimeout(prepare, prepareIn));
+    timersRef.current.push(window.setTimeout(() => {
+      if (decksRef.current[activeRef.current].key === current.itemId) handOff(next, current.fadeOutSeconds, startsAt);
+    }, Math.max(0, startsAt - Date.now())));
   }, [tunedIn, loadKey, dataUpdatedAt]);
 
+  // Stop everything when leaving the page.
+  useEffect(() => () => {
+    timersRef.current.forEach(clearTimeout);
+    [0, 1].forEach(stopFade);
+  }, []);
+
   useEffect(() => {
-    const el = mediaRef.current;
-    if (!el) return;
-    el.volume = volume;
-    el.muted = muted;
+    [0, 1].forEach(applyVolume);
     try { localStorage.setItem(VOLUME_KEY, String(volume)); } catch { /* storage unavailable */ }
   }, [volume, muted]);
 
@@ -120,16 +287,18 @@ export default function Listen() {
   }, [waiting]);
 
   // Pick up the next item promptly when one finishes, rather than waiting for the poll.
-  function onEnded() {
+  function onEnded(i: number) {
+    if (i !== activeRef.current) { unload(i); return; }
     // A live stream only ends if the connection closed; reconnect with a fresh link.
-    if (stream) loadedItemRef.current = null;
+    if (stream) decksRef.current[i] = emptyDeck();
     setTimeout(() => refetch(), 300);
   }
 
   // A failed load (e.g. the network dropped) re-fetches a fresh stream URL.
-  function onError() {
+  function onError(i: number) {
+    if (i !== activeRef.current) { unload(i); return; }
     if (!tunedIn || loadKey === null) return;
-    loadedItemRef.current = null;
+    decksRef.current[i] = emptyDeck();
     setTimeout(() => refetch(), 2_000);
   }
 
@@ -164,14 +333,18 @@ export default function Listen() {
       <PageHeader title="Listen" description="The live station. Everyone hears the same thing at the same time." />
 
       <Card className="mb-6">
-        <video
-          ref={mediaRef}
-          playsInline
-          onEnded={onEnded}
-          onError={onError}
-          onTimeUpdate={e => setPosition(e.currentTarget.currentTime)}
-          className={isVideo && tunedIn ? "w-full aspect-video bg-black" : "hidden"}
-        />
+        {deckRefs.map((ref, i) => (
+          <video
+            key={i}
+            ref={ref}
+            playsInline
+            preload="auto"
+            onEnded={() => onEnded(i)}
+            onError={() => onError(i)}
+            onTimeUpdate={e => { if (i === active) setPosition(e.currentTarget.currentTime); }}
+            className={i === active && isVideo && tunedIn ? "w-full aspect-video bg-black" : "hidden"}
+          />
+        ))}
 
         {!data ? (
           <div className="p-12 text-center text-muted-foreground">Connecting to the station…</div>
@@ -265,7 +438,7 @@ export default function Listen() {
             </div>
 
             {blocked && (
-              <Button className="mt-4" onClick={() => mediaRef.current?.play().then(() => setBlocked(false)).catch(() => {})}>
+              <Button className="mt-4" onClick={() => play(activeRef.current)}>
                 Tap to resume audio
               </Button>
             )}

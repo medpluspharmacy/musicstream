@@ -29,6 +29,10 @@ A private, company-wide radio station. Admins upload audio and video (ads, jingl
 
 The playlist plays as an endless loop anchored to the moment the station went live (`station_state.started_at`). `GET /api/station/now-playing` tells each listener which item is on and how many seconds in, and the player re-syncs every 15 seconds. When the admin edits the playlist, the anchor is shifted so the item currently playing carries on without a jump.
 
+**Playback** settings on the Playlist page apply to every listener:
+- **Crossfade** (0–12 seconds) starts each item that many seconds before the previous one ends, fading one out and the other in. The schedule includes the overlap, so listeners stay in sync. It's capped at half the length of either item, and a one-item playlist doesn't fade into itself. iOS and iPadOS don't let pages change volume, so players there cut cleanly at the same moment.
+- **Gapless** (on by default) has each player load the next item about 30 seconds early on a second player, then start it on time. With it off and no crossfade, the next item loads when the current one ends, which can leave a short gap.
+
 Audio/video is served by `GET /api/media/:id/stream` with HTTP Range support. Browsers' media elements can't send an `Authorization` header, so stream URLs carry a short-lived signed token scoped to that one file.
 
 ### Who's connected

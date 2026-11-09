@@ -53,6 +53,15 @@ export interface StationStatus {
   azuracastStation: string | null;
   itemCount: number;
   totalDurationSeconds: number;
+  playback: PlaybackSettings;
+}
+
+/** How the playlist plays, for every listener. */
+export interface PlaybackSettings {
+  /** Seconds each item overlaps the next, 0–12. */
+  crossfadeSeconds: number;
+  /** Players load the next item early so it starts without a gap. */
+  gapless: boolean;
 }
 
 export type MediaKind = "audio" | "video";
@@ -103,7 +112,24 @@ export interface NowPlaying {
     durationSeconds: number;
     offsetSeconds: number;
     streamUrl: string;
+    /** Seconds this item fades in over the previous one. */
+    fadeInSeconds: number;
+    /** Seconds it fades out under the next one. */
+    fadeOutSeconds: number;
+    /** When the next item starts, from `offsetSeconds`. */
+    nextStartsInSeconds: number;
   } | null;
+  /** The item after `current`, so players can load it early. */
+  next: {
+    itemId: number;
+    mediaId: number;
+    title: string;
+    kind: MediaKind;
+    mimeType: string;
+    durationSeconds: number;
+    streamUrl: string;
+  } | null;
+  gapless: boolean;
   upNext: { title: string; kind: MediaKind; durationSeconds: number }[];
 }
 
@@ -209,6 +235,8 @@ export const reorderPlaylist = (itemIds: number[]) =>
 export const getStationStatus = () => customFetch<StationStatus>("/api/admin/station");
 export const startStation = () => customFetch<StationStatus>("/api/admin/station/start", json("POST"));
 export const stopStation = () => customFetch<StationStatus>("/api/admin/station/stop", json("POST"));
+export const setPlayback = (settings: PlaybackSettings) =>
+  customFetch<StationStatus>("/api/admin/station/playback", json("PUT", settings));
 export const setStationSource = (source: StationSource) =>
   customFetch<StationStatus>("/api/admin/station/source", json("PUT", { source }));
 /** `listening` tells the server the player is tuned in, for the admins' Connected list. */

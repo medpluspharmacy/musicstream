@@ -7,6 +7,7 @@ import { getNowPlaying as getAzuraCastNowPlaying, type AzuraCastConfig } from ".
 import { logger } from "../lib/logger.js";
 
 const UP_NEXT_COUNT = 5;
+export const MAX_CROSSFADE_SECONDS = 12;
 
 type LoadedItem = PlaylistItem & { media: MediaFile };
 
@@ -16,6 +17,35 @@ export function mediaStreamUrl(mediaId: number) {
 
 function totalDuration(items: LoadedItem[]) {
   return items.reduce((sum, i) => sum + i.media.durationSeconds, 0);
+}
+
+/**
+ * Seconds that item i overlaps the next one. Capped at half of either item, so
+ * a short jingle never fades for longer than it plays. A one-item loop doesn't
+ * crossfade into itself.
+ */
+function overlapAfter(items: LoadedItem[], i: number, crossfade: number) {
+  if (items.length < 2 || crossfade <= 0) return 0;
+  const a = items[i].media.durationSeconds;
+  const b = items[(i + 1) % items.length].media.durationSeconds;
+  return Math.max(0, Math.min(crossfade, a / 2, b / 2));
+}
+
+/**
+ * The loop's schedule: item i starts at starts[i] and plays its full duration,
+ * but the next item starts `overlap` seconds before it ends. Without crossfade
+ * this is just the durations end to end.
+ */
+export function timeline(items: LoadedItem[], crossfade: number) {
+  const starts: number[] = [];
+  const overlaps: number[] = [];
+  let total = 0;
+  for (let i = 0; i < items.length; i++) {
+    starts.push(total);
+    overlaps.push(overlapAfter(items, i, crossfade));
+    total += items[i].media.durationSeconds - overlaps[i];
+  }
+  return { starts, overlaps, total };
 }
 
 /**
@@ -54,29 +84,40 @@ export default class StationController {
     return { cfg, nowPlaying: await getAzuraCastNowPlaying(cfg) };
   }
 
-  /** Where the loop is at `now`: the item index and seconds into that item. */
-  static locate(items: LoadedItem[], startedAt: Date, now: number) {
-    const total = totalDuration(items);
+  /**
+   * Where the loop is at `now`: the item that most recently started, seconds
+   * into it, how long it fades in and out, and when the next item starts.
+   * During a crossfade the incoming item is the current one.
+   */
+  static locate(items: LoadedItem[], startedAt: Date, now: number, crossfade = 0) {
+    const { starts, overlaps, total } = timeline(items, crossfade);
     if (items.length === 0 || total <= 0) return null;
     let pos = ((now - startedAt.getTime()) / 1000) % total;
     if (pos < 0) pos += total;
+    let index = items.length - 1;
     for (let i = 0; i < items.length; i++) {
-      const d = items[i].media.durationSeconds;
-      if (pos < d) return { index: i, offset: pos };
-      pos -= d;
+      if (pos < starts[i] + items[i].media.durationSeconds - overlaps[i]) { index = i; break; }
     }
-    return { index: items.length - 1, offset: 0 };
+    const offset = Math.max(0, pos - starts[index]);
+    const slot = items[index].media.durationSeconds - overlaps[index];
+    return {
+      index,
+      offset,
+      fadeInSeconds: overlaps[(index - 1 + items.length) % items.length],
+      fadeOutSeconds: overlaps[index],
+      nextStartsInSeconds: Math.max(0, slot - offset),
+    };
   }
 
   private static async currentPosition() {
     const [state, items] = await Promise.all([StationController.state(), StationController.items()]);
     if (!state.isLive || !state.startedAt) return null;
-    const loc = StationController.locate(items, state.startedAt, Date.now());
+    const loc = StationController.locate(items, state.startedAt, Date.now(), state.crossfadeSeconds);
     return loc ? { itemId: items[loc.index].id, offset: loc.offset } : null;
   }
 
   /**
-   * Runs a playlist change, then re-anchors the loop so whatever is playing
+   * Runs a playlist or playback change, then re-anchors the loop so whatever is playing
    * keeps playing at the same point instead of jumping. If the playing item
    * was removed, the loop restarts from the top.
    */
@@ -90,8 +131,8 @@ export default class StationController {
       let startedAt = new Date(now);
       const idx = before ? items.findIndex(i => i.id === before.itemId) : -1;
       if (before && idx >= 0) {
-        const cumulative = totalDuration(items.slice(0, idx));
-        startedAt = new Date(now - (cumulative + before.offset) * 1000);
+        const { starts } = timeline(items, state.crossfadeSeconds);
+        startedAt = new Date(now - (starts[idx] + before.offset) * 1000);
       }
       state.startedAt = startedAt;
       state.updatedAt = new Date();
@@ -104,9 +145,9 @@ export default class StationController {
     const [state, items] = await Promise.all([StationController.state(), StationController.items()]);
     if (state.source === "azuracast") return StationController.azuracastNowPlaying(state, viewer);
     const now = Date.now();
-    const base = { live: state.isLive, source: state.source, serverTime: new Date(now).toISOString(), stream: null };
-    const loc = state.isLive && state.startedAt ? StationController.locate(items, state.startedAt, now) : null;
-    if (!loc) return { ...base, current: null, upNext: [] };
+    const base = { live: state.isLive, source: state.source, serverTime: new Date(now).toISOString(), stream: null, gapless: state.gapless };
+    const loc = state.isLive && state.startedAt ? StationController.locate(items, state.startedAt, now, state.crossfadeSeconds) : null;
+    if (!loc) return { ...base, current: null, next: null, upNext: [] };
 
     const item = items[loc.index];
     const upNext = [];
@@ -125,13 +166,29 @@ export default class StationController {
         durationSeconds: item.media.durationSeconds,
         offsetSeconds: loc.offset,
         streamUrl: mediaStreamUrl(item.media.id),
+        fadeInSeconds: loc.fadeInSeconds,
+        fadeOutSeconds: loc.fadeOutSeconds,
+        nextStartsInSeconds: loc.nextStartsInSeconds,
       },
+      // Lets players load the next item early, for gapless playback and crossfades.
+      next: (() => {
+        const n = items[(loc.index + 1) % items.length];
+        return {
+          itemId: n.id,
+          mediaId: n.media.id,
+          title: n.media.title,
+          kind: n.media.kind,
+          mimeType: n.media.mimeType,
+          durationSeconds: n.media.durationSeconds,
+          streamUrl: mediaStreamUrl(n.media.id),
+        };
+      })(),
       upNext,
     };
   }
 
   private static async azuracastNowPlaying(state: StationState, viewer: { id: number }) {
-    const base = { live: state.isLive, source: state.source, serverTime: new Date().toISOString(), current: null };
+    const base = { live: state.isLive, source: state.source, serverTime: new Date().toISOString(), current: null, next: null, gapless: state.gapless };
     const cfg = StationController.azuracastConfig(state);
     if (!state.isLive || !cfg) return { ...base, stream: null, upNext: [] };
     const user = await User.findByPk(viewer.id, { attributes: ["id", "tokenVersion"] });
@@ -211,7 +268,20 @@ export default class StationController {
       azuracastStation: state.azuracastUrl ? state.azuracastStation : null,
       itemCount: items.length,
       totalDurationSeconds: totalDuration(items),
+      playback: { crossfadeSeconds: state.crossfadeSeconds, gapless: state.gapless },
     };
+  }
+
+  /** Changes how the playlist plays. A live station carries on from the same point in the current item. */
+  static async setPlayback(input: { crossfadeSeconds: number; gapless: boolean }) {
+    await StationController.mutate(async () => {
+      const state = await StationController.state();
+      state.crossfadeSeconds = input.crossfadeSeconds;
+      state.gapless = input.gapless;
+      state.updatedAt = new Date();
+      await state.save();
+    });
+    return StationController.status();
   }
 
   /** Checks the chosen source can play right now; AzuraCast errors explain what's wrong. */
