@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib";
 import { ReactNode, useState } from "react";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 
@@ -112,6 +113,19 @@ export function Label({ children, className = "", htmlFor }: { children: ReactNo
     <label htmlFor={htmlFor} className={`block text-sm font-semibold text-foreground mb-1.5 ${className}`}>
       {children}
     </label>
+  );
+}
+
+/** Shown when a list couldn't load, so a failure never looks like an empty list. */
+export function LoadError({ what, error, onRetry }: { what: string; error: unknown; onRetry: () => void }) {
+  const raw = errorMessage(error, "Something went wrong");
+  const message = /[.!?]$/.test(raw) ? raw : `${raw}.`;
+  return (
+    <Card className="p-6 border-destructive/40" role="alert">
+      <p className="font-semibold text-destructive">Couldn't load {what}</p>
+      <p className="text-sm text-muted-foreground mt-1">{message} Nothing has been deleted; try again, or ask an admin to check the server logs.</p>
+      <Button variant="outline" size="sm" className="mt-4" onClick={onRetry}>Try again</Button>
+    </Card>
   );
 }
 

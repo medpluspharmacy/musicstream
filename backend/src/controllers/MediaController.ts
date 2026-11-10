@@ -2,6 +2,8 @@ import path from "node:path";
 import fsp from "node:fs/promises";
 import { MediaFile, PlaylistItem } from "../models/index.js";
 import { HttpError } from "../lib/http-error.js";
+import { logger } from "../lib/logger.js";
+import { isMissingFileError } from "../lib/storage.js";
 import StationController, { mediaStreamUrl } from "./StationController.js";
 import StorageController from "./StorageController.js";
 
@@ -53,8 +55,17 @@ export default class MediaController {
       const ext = path.extname(file.originalname).toLowerCase();
       const title = (typeof rawTitle === "string" && rawTitle.trim())
         || path.basename(file.originalname, path.extname(file.originalname));
-      const { storage, backendId } = await StorageController.forUpload();
-      const storageKey = await storage.saveFromPath(file.path, ext, file.mimetype);
+      let storageKey: string;
+      let backendId: number | null;
+      try {
+        const target = await StorageController.forUpload();
+        backendId = target.backendId;
+        storageKey = await target.storage.saveFromPath(file.path, ext, file.mimetype);
+      } catch (err) {
+        // Usually wrong storage settings; say so instead of a bare "Server error".
+        logger.error({ err }, "Couldn't save an upload to storage");
+        throw new HttpError(502, "The file couldn't be saved to storage. A super admin should check Settings → Storage (use Test and save).");
+      }
       return await MediaFile.create({
         title,
         kind,
@@ -93,6 +104,12 @@ export default class MediaController {
     const media = await MediaFile.findByPk(id);
     if (!media?.storageKey) return null;
     const storage = await StorageController.forMedia(media);
-    return { media, storage, size: await storage.size(media.storageKey) };
+    try {
+      return { media, storage, size: await storage.size(media.storageKey) };
+    } catch (err) {
+      if (!isMissingFileError(err)) throw err;
+      logger.warn({ mediaId: media.id }, "Media file is missing from storage");
+      throw new HttpError(410, "This file is missing from storage, for example because the server's disk was wiped by a redeploy. Delete it and upload it again.");
+    }
   }
 }

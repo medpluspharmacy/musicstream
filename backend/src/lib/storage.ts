@@ -13,6 +13,12 @@ import { S3Client, PutObjectCommand, HeadObjectCommand, GetObjectCommand, Delete
  * The Settings page can choose a location (controllers/StorageController).
  * Otherwise the environment decides, with STORAGE_DRIVER=local (default) or s3.
  */
+/** True when a stored file is gone, e.g. a server disk wiped by a redeploy. */
+export function isMissingFileError(err: unknown): boolean {
+  const e = err as { code?: string; name?: string; $metadata?: { httpStatusCode?: number } };
+  return e?.code === "ENOENT" || e?.name === "NoSuchKey" || e?.name === "NotFound" || e?.$metadata?.httpStatusCode === 404;
+}
+
 export interface MediaStorage {
   /** Moves an already-written temp file into storage and returns its key. */
   saveFromPath(tmpPath: string, extension: string, contentType?: string): Promise<string>;
@@ -64,6 +70,22 @@ class LocalDiskStorage implements MediaStorage {
   }
 }
 
+// Time limits for storage requests, so an unresponsive service fails instead of hanging.
+const QUICK_REQUEST_MS = 20_000;
+const UPLOAD_BASE_MS = 60_000;
+const UPLOAD_MIN_BYTES_PER_SEC = 100 * 1024;
+
+/** Runs a storage request that gives up after `ms`. Streams are only timed until they start. */
+async function withTimeout<T>(ms: number, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error(`Storage didn't respond within ${Math.round(ms / 1000)} s`)), ms);
+  try {
+    return await run(controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 class S3Storage implements MediaStorage {
   constructor(private client: S3Client, private bucket: string, private prefix: string) {}
 
@@ -75,33 +97,38 @@ class S3Storage implements MediaStorage {
   async saveFromPath(tmpPath: string, extension: string, contentType?: string) {
     const key = newKey(extension);
     const { size } = await fsp.stat(tmpPath);
-    await this.client.send(new PutObjectCommand({
+    // Allows a slow connection (100 KB/s) for big files.
+    const limit = UPLOAD_BASE_MS + (size / UPLOAD_MIN_BYTES_PER_SEC) * 1000;
+    await withTimeout(limit, abortSignal => this.client.send(new PutObjectCommand({
       Bucket: this.bucket,
       Key: this.objectKey(key),
       Body: fs.createReadStream(tmpPath),
       ContentLength: size,
       ContentType: contentType,
-    }));
+    }), { abortSignal }));
     await fsp.rm(tmpPath, { force: true });
     return key;
   }
 
   async size(key: string) {
-    const head = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: this.objectKey(key) }));
+    const head = await withTimeout(QUICK_REQUEST_MS, abortSignal =>
+      this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: this.objectKey(key) }), { abortSignal }));
     return head.ContentLength ?? 0;
   }
 
   async openReadStream(key: string, range?: { start: number; end: number }) {
-    const obj = await this.client.send(new GetObjectCommand({
+    // Timed until the file starts arriving; a long song then streams for as long as it plays.
+    const obj = await withTimeout(QUICK_REQUEST_MS, abortSignal => this.client.send(new GetObjectCommand({
       Bucket: this.bucket,
       Key: this.objectKey(key),
       Range: range ? `bytes=${range.start}-${range.end}` : undefined,
-    }));
+    }), { abortSignal }));
     return obj.Body as Readable;
   }
 
   async remove(key: string) {
-    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: this.objectKey(key) }));
+    await withTimeout(QUICK_REQUEST_MS, abortSignal =>
+      this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: this.objectKey(key) }), { abortSignal }));
   }
 }
 

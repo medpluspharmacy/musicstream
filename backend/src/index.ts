@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import app from "./app";
 import { connectDatabase } from "./db/sequelize.js";
+import { migrateOnStart } from "./db/migrate-on-start.js";
 import { logger } from "./lib/logger";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -27,6 +28,14 @@ async function startServer() {
     await connectDatabase();
   } catch (err) {
     logger.error({ err }, "Database connection failed on startup");
+    process.exit(1);
+  }
+
+  try {
+    await migrateOnStart(path.resolve(__dirname, ".."));
+  } catch (err: any) {
+    // Refuse to start rather than serve errors; on App Platform the previous version keeps running.
+    logger.error({ err: err?.message, output: String(err?.stdout ?? "") + String(err?.stderr ?? "") }, "Database migrations failed on startup");
     process.exit(1);
   }
 
