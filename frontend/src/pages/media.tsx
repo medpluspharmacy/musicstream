@@ -5,7 +5,7 @@ import { listMedia, uploadMedia, renameMedia, deleteMedia, addToPlaylist, errorM
 import { formatBytes, formatDuration } from "@/lib/format";
 import { resolveApiUrl } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { Button, Card, EmptyState, Input, Label, PageHeader } from "@/components/shared";
+import { Button, Card, EmptyState, Input, Label, LoadError, PageHeader } from "@/components/shared";
 import { Progress } from "@/components/ui/progress";
 
 /** Reads duration in the browser; also proves the file is playable before it's uploaded. */
@@ -230,13 +230,15 @@ function MediaRow({ m }: { m: MediaFile }) {
 }
 
 export default function Media() {
-  const { data: media = [], isLoading } = useQuery({ queryKey: ["media"], queryFn: listMedia });
+  const { data: media = [], isLoading, isError, error, refetch } = useQuery({ queryKey: ["media"], queryFn: listMedia });
 
   return (
     <div>
       <PageHeader title="Media Library" description="Upload audio and video ads, jingles and tracks for the station." />
       <UploadCard />
-      {!isLoading && media.length === 0 ? (
+      {isError ? (
+        <LoadError what="the media library" error={error} onRetry={() => refetch()} />
+      ) : !isLoading && media.length === 0 ? (
         <EmptyState icon={Library} title="No media yet" description="Upload your first audio or video file above." />
       ) : (
         <Card>

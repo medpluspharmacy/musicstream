@@ -135,6 +135,8 @@ npm run dev                            # http://localhost:3001
 | `npm start` | Runs the production server: API on `/api`, dashboard on every other path, on `$PORT` |
 | `npm run dev` | Development: builds the backend, which spawns Vite with hot reload |
 | `npm run release` | Runs migrations, then seeds the first admin if `SEED_ADMIN_PASSWORD` is set (used before each deploy) |
+
+The server also applies any pending migrations when it starts, before taking requests, so new code never runs against an older database. If they fail, it doesn't start (on App Platform the previous version keeps running). Set `MIGRATE_ON_START=false` to leave migrations to `npm run release` only.
 | `npm run typecheck` | Typechecks both apps |
 
 Sign in as the seeded admin. You'll be asked to set up 2FA with an authenticator app. Then share the site link. New sign-ups wait under **Listeners → Waiting for approval**, and you can delegate areas to other people under **Admin team**.

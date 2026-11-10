@@ -9,7 +9,7 @@ import {
 } from "@/lib";
 import { formatDuration } from "@/lib/format";
 import { useToast } from "@/hooks/use-toast";
-import { Button, Card, EmptyState, PageHeader } from "@/components/shared";
+import { Button, Card, EmptyState, LoadError, PageHeader } from "@/components/shared";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 
@@ -186,7 +186,7 @@ export default function Playlist() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [selected, setSelected] = useState("");
-  const { data: items = [], isLoading } = useQuery({ queryKey: ["playlist"], queryFn: listPlaylist });
+  const { data: items = [], isLoading, isError, error, refetch } = useQuery({ queryKey: ["playlist"], queryFn: listPlaylist });
   const { data: media = [] } = useQuery({ queryKey: ["media"], queryFn: listMedia });
 
   const refresh = () => ["playlist", "media", "station", "now-playing"].forEach(k => qc.invalidateQueries({ queryKey: [k] }));
@@ -247,7 +247,9 @@ export default function Playlist() {
         )}
       </Card>
 
-      {!isLoading && items.length === 0 ? (
+      {isError ? (
+        <LoadError what="the playlist" error={error} onRetry={() => refetch()} />
+      ) : !isLoading && items.length === 0 ? (
         <EmptyState icon={ListMusic} title="The playlist is empty" description="Add media above, then go live." />
       ) : (
         <Card>
