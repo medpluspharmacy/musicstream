@@ -12,6 +12,7 @@ import NotFound from "@/pages/not-found";
 
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import ForgotPassword from "@/pages/forgot-password";
 import Dashboard from "@/pages/dashboard";
 import Media from "@/pages/media";
 import Playlist from "@/pages/playlist";
@@ -65,6 +66,7 @@ function Router() {
       </Route>
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/forgot-password" component={ForgotPassword} />
       
       {/* Protected Routes wrapped in Layout */}
       {PAGES.map(([path, component, access]) => (

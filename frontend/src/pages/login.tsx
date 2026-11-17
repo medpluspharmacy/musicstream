@@ -63,7 +63,10 @@ export default function Login() {
             <Input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div>
-            <Label>Password</Label>
+            <div className="flex items-baseline justify-between">
+              <Label>Password</Label>
+              <Link href="/forgot-password" className="text-sm text-primary font-medium hover:underline">Forgot password?</Link>
+            </div>
             <PasswordInput autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
 

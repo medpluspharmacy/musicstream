@@ -9,6 +9,7 @@ import {
 } from "../middlewares/auth.js";
 import { generateSecret, generateQrDataUrl, verifyToken } from "../lib/totp.js";
 import { encryptSecret, decryptSecret } from "../lib/secret-cipher.js";
+import PasswordResetController from "./PasswordResetController.js";
 import { HttpError } from "../lib/http-error.js";
 import { effectivePermissions } from "../lib/permissions.js";
 
@@ -53,6 +54,10 @@ export default class AuthController {
   static async login(email: string, password: string) {
     const user = await User.findOne({ where: { email: email.trim().toLowerCase() } });
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+      // Someone using the new password from their reset request before an admin approved it.
+      if (user && (await PasswordResetController.isAwaitingApproval(user.id, password))) {
+        throw new HttpError(403, "Your new password is waiting for an admin to approve it. Until then, your old password still works.");
+      }
       throw new HttpError(401, "Invalid email or password");
     }
     await AuthController.assertCanSignIn(user);

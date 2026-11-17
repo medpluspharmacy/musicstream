@@ -2,9 +2,10 @@ import { Op } from "sequelize";
 import { User, MediaFile } from "../models/index.js";
 import StationController from "./StationController.js";
 import ListenerController from "./ListenerController.js";
+import PasswordResetController from "./PasswordResetController.js";
 
 export default class DashboardController {
-  static async summary() {
+  static async summary(viewer: { id: number; role: string }) {
     const [listeners, activeListeners, pending2FA, pendingApproval, mediaCount, station, connected] = await Promise.all([
       User.count({ where: { role: "user" } }),
       User.count({ where: { role: "user", isActive: true, totpEnabled: true, approvalStatus: "approved" } }),
@@ -25,6 +26,7 @@ export default class DashboardController {
       pendingApproval,
       mediaCount,
       station,
+      passwordResets: await PasswordResetController.countPending(viewer),
       listeningNow: connected.filter(c => c.listening).length,
     };
   }

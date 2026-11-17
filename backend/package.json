@@ -14,7 +14,8 @@
     "db:migrate:undo:all": "npx sequelize-cli db:migrate:undo:all",
     "db:migrate:status": "npx sequelize-cli db:migrate:status",
     "db:migration:generate": "npx sequelize-cli migration:generate --name",
-    "db:seed": "node --enable-source-maps ./dist/seed-runner.mjs"
+    "db:seed": "node --enable-source-maps ./dist/seed-runner.mjs",
+    "admin:reset-password": "node --enable-source-maps ./dist/reset-password-runner.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",
