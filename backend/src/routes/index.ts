@@ -9,6 +9,7 @@ import integrationsRouter from "./integrations";
 import teamRouter from "./team";
 import settingsRouter from "./settings";
 import brandingRouter from "./branding";
+import passwordResetsRouter from "./password-resets";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(integrationsRouter);
 router.use(teamRouter);
 router.use(settingsRouter);
 router.use(brandingRouter);
+router.use(passwordResetsRouter);
 
 export default router;

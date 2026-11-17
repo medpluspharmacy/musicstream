@@ -14,6 +14,7 @@
     "typecheck": "npm run typecheck --prefix backend && npm run typecheck --prefix frontend",
     "db:migrate": "npm run db:migrate --prefix backend",
     "db:seed": "npm run db:seed --prefix backend",
+    "admin:reset-password": "npm run admin:reset-password --prefix backend --",
     "release": "npm run db:migrate && if [ -n \"$SEED_ADMIN_PASSWORD\" ]; then npm run db:seed; fi"
   }
 }

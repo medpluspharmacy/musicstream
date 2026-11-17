@@ -7,11 +7,13 @@ import { Enable2FAAction } from "../actions/auth/Enable2FAAction.js";
 import { Verify2FAAction } from "../actions/auth/Verify2FAAction.js";
 import { GetMeAction } from "../actions/auth/GetMeAction.js";
 import { LogoutAction } from "../actions/auth/LogoutAction.js";
+import { ForgotPasswordAction } from "../actions/auth/ForgotPasswordAction.js";
 
 const router = Router();
 
 router.post("/auth/login", LoginAction.handle);
 router.post("/auth/register", RegisterAction.handle);
+router.post("/auth/forgot-password", ForgotPasswordAction.handle);
 router.post("/auth/2fa/setup", Setup2FAAction.handle);
 router.post("/auth/2fa/enable", Enable2FAAction.handle);
 router.post("/auth/2fa/verify", Verify2FAAction.handle);

@@ -38,6 +38,8 @@ export interface DashboardSummary {
   newListenersThisWeek: number;
   mediaCount: number;
   pendingApproval: number;
+  /** Password reset requests this admin can approve. */
+  passwordResets: number;
   /** Listeners tuned in right now. */
   listeningNow: number;
   station: StationStatus;
@@ -151,6 +153,9 @@ const json = (method: string, body?: unknown): RequestInit => ({
 // --- auth
 export const login = (body: { email: string; password: string }) =>
   customFetch<PendingSignIn>("/api/auth/login", json("POST", body));
+/** Always succeeds the same way, whether or not the email exists. */
+export const requestPasswordReset = (body: { email: string; newPassword: string; code: string }) =>
+  customFetch<{ message: string }>("/api/auth/forgot-password", json("POST", body));
 export const register = (body: { name: string; email: string; password: string }) =>
   customFetch<PendingSignIn>("/api/auth/register", json("POST", body));
 export const setup2FA = (pendingToken: string) =>
@@ -174,6 +179,17 @@ export const setListenerActive = (id: number, isActive: boolean) =>
 export const resetListener2FA = (id: number) => customFetch<User>(`/api/admin/listeners/${id}/reset-2fa`, json("POST"));
 export const approveListener = (id: number) => customFetch<User>(`/api/admin/listeners/${id}/approve`, json("POST"));
 export const declineListener = (id: number) => customFetch<User>(`/api/admin/listeners/${id}/decline`, json("POST"));
+export interface PasswordResetRequest {
+  id: number;
+  createdAt: string;
+  expiresAt: string;
+  /** The requester gave a correct authenticator code. False only for accounts that never set up 2FA. */
+  verifiedWith2fa: boolean;
+  user: { id: number; name: string; email: string; role: string };
+}
+export const listPasswordResets = () => customFetch<PasswordResetRequest[]>("/api/admin/password-resets");
+export const approvePasswordReset = (id: number) => customFetch<{ id: number; status: string }>(`/api/admin/password-resets/${id}/approve`, json("POST"));
+export const declinePasswordReset = (id: number) => customFetch<{ id: number; status: string }>(`/api/admin/password-resets/${id}/decline`, json("POST"));
 export interface ConnectedListener {
   id: number;
   name: string;

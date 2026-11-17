@@ -18,6 +18,7 @@ async function buildAll() {
     entryPoints: [
       path.resolve(artifactDir, "src/index.ts"),
       path.resolve(artifactDir, "src/seed-runner.ts"),
+      path.resolve(artifactDir, "src/reset-password-runner.ts"),
     ],
     platform: "node",
     bundle: true,

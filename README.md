@@ -7,7 +7,7 @@ A private, company-wide radio station. Admins upload audio and video (ads, jingl
 **Admin** (roles `admin`, `super_admin`)
 - **Media Library**: upload up to 5 audio/video files at a time with progress, preview, rename, delete
 - **Playlist**: add from the library, reorder, remove; go live / stop the station
-- **Listeners**: approve or decline new sign-ups; see who's connected and listening now; sign people out; see 2FA status; deactivate/reactivate; reset 2FA
+- **Listeners**: approve or decline new sign-ups; approve password resets; see who's connected and listening now; sign people out; see 2FA status; deactivate/reactivate; reset 2FA
 - **Admin team** (super admin only): promote approved listeners to sub-admins and choose what each one manages
 - **Integrations**: uploaded media, and AzuraCast radio stations (see below); Spotify is planned
 - **Settings** (super admin only): choose where uploads are stored (see below)
@@ -17,6 +17,21 @@ A private, company-wide radio station. Admins upload audio and video (ads, jingl
 **Listener** (role `user`)
 - Open self sign-up with any email, then mandatory authenticator-app 2FA. They see a "waiting for approval" screen until an admin approves them; declined accounts can't sign in
 - **Listen**: a live player that stays in sync with the station; shows what's up next
+
+### Forgotten passwords
+
+No email is sent, so resetting a password needs an admin's approval:
+
+1. On the sign-in page, **Forgot password?** asks for the email, a new password, and the current code from the authenticator app. The code proves who's asking. Accounts that never finished 2FA setup can leave it blank, and their request is marked **not verified**.
+2. The request appears under **Listeners → Password resets**, and on the Dashboard. Approving sets the new password and signs the account out everywhere; declining leaves the old password. Until then the old password keeps working, and signing in with the new one says it's waiting for approval.
+
+- The form gives the same reply whether or not the email exists or the code was right. It's rate-limited like sign-in.
+- Admins who manage listeners approve listeners' requests. Requests for admin accounts can only be approved by the super admin, and nobody can approve their own.
+- Requests expire after 7 days, and a new request replaces an older one.
+- If the super admin forgets their password, run this in the server console (App Platform: the web component's **Console** tab). It asks for the new password:
+  ```bash
+  npm run admin:reset-password -- admin@example.com
+  ```
 
 ### Admin roles
 
@@ -138,6 +153,7 @@ npm run dev                            # http://localhost:3001
 
 The server also applies any pending migrations when it starts, before taking requests, so new code never runs against an older database. If they fail, it doesn't start (on App Platform the previous version keeps running). Set `MIGRATE_ON_START=false` to leave migrations to `npm run release` only.
 | `npm run typecheck` | Typechecks both apps |
+| `npm run admin:reset-password -- <email>` | Sets an account's password from the console, e.g. for the super admin |
 
 Sign in as the seeded admin. You'll be asked to set up 2FA with an authenticator app. Then share the site link. New sign-ups wait under **Listeners → Waiting for approval**, and you can delegate areas to other people under **Admin team**.
 

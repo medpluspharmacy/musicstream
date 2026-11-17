@@ -6,9 +6,11 @@ import StationState from "./StationState.js";
 import StorageBackend from "./StorageBackend.js";
 import Branding from "./Branding.js";
 import BrandingAsset from "./BrandingAsset.js";
+import PasswordResetRequest from "./PasswordResetRequest.js";
 
 PlaylistItem.belongsTo(MediaFile, { foreignKey: "mediaId", as: "media" });
 MediaFile.hasMany(PlaylistItem, { foreignKey: "mediaId", as: "playlistItems" });
+PasswordResetRequest.belongsTo(User, { foreignKey: "userId", as: "user" });
 
 export {
   sequelize,
@@ -19,4 +21,5 @@ export {
   StorageBackend,
   Branding,
   BrandingAsset,
+  PasswordResetRequest,
 };
