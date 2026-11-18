@@ -13,6 +13,9 @@ class StationState extends Model {
   declare azuracastApiKey: string | null;
   declare crossfadeSeconds: number;
   declare gapless: boolean;
+  declare timezone: string;
+  /** The station-local date (YYYY-MM-DD) whose programme started at started_at. */
+  declare anchorDay: string | null;
   declare updatedAt: Date;
 }
 
@@ -27,6 +30,8 @@ StationState.init(
     azuracastApiKey: { type: DataTypes.TEXT, field: "azuracast_api_key" },
     crossfadeSeconds: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, field: "crossfade_seconds" },
     gapless: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    timezone: { type: DataTypes.STRING(64), allowNull: false, defaultValue: "Africa/Lagos" },
+    anchorDay: { type: DataTypes.STRING(10), field: "anchor_day" },
     updatedAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW, field: "updated_at" },
   },
   { sequelize, tableName: "station_state", timestamps: false }

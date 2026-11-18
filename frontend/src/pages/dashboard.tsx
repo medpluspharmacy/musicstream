@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { can } from "@/lib/roles";
 import { Card, PageHeader } from "@/components/shared";
 import { useAppSettings } from "@/hooks/use-app-settings";
+import { PasswordResetsPanel } from "@/components/password-resets";
 
 /** The welcome banner, over the background picture chosen under Settings → Appearance. */
 function WelcomeBanner({ name }: { name: string }) {
@@ -70,13 +71,15 @@ export default function Dashboard() {
                   ? "Loading…"
                   : station.source === "azuracast"
                     ? `Playing from AzuraCast · ${station.azuracastStation}`
-                    : `${station.itemCount} items in the playlist · ${formatDuration(station.totalDurationSeconds)} loop`}
+                    : station.today?.playlists.length
+                      ? `Today: ${station.today.playlists.map(p => p.name).join(" → ")} · ${station.itemCount} items · ${formatDuration(station.totalDurationSeconds)} loop`
+                      : "Nothing scheduled today"}
               </p>
             </div>
           </div>
           {can(user, "station") && (
             <Link href="/playlist" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
-              Manage playlist <ArrowRight className="w-4 h-4" />
+              Manage playlists <ArrowRight className="w-4 h-4" />
             </Link>
           )}
         </div>
@@ -93,6 +96,7 @@ export default function Dashboard() {
         <Stat label="Media files" value={v(data?.mediaCount)} icon={Library} href={can(user, "station") ? "/media" : undefined} />
 
       </div>
+      {can(user, "listeners") && <PasswordResetsPanel />}
     </div>
   );
 }

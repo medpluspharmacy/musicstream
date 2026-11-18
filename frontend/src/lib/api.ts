@@ -53,8 +53,12 @@ export interface StationStatus {
   source: StationSource;
   /** Station short name when AzuraCast is connected. */
   azuracastStation: string | null;
+  /** Items and length of today's programme. */
   itemCount: number;
   totalDurationSeconds: number;
+  /** Today in the station's time zone, and its queue of playlists. */
+  today: { date: string; weekday: number; playlists: { id: number; name: string }[] };
+  timezone: string;
   playback: PlaybackSettings;
 }
 
@@ -120,6 +124,7 @@ export interface NowPlaying {
     fadeOutSeconds: number;
     /** When the next item starts, from `offsetSeconds`. */
     nextStartsInSeconds: number;
+    playlistName: string;
   } | null;
   /** The item after `current`, so players can load it early. */
   next: {
@@ -187,6 +192,13 @@ export interface PasswordResetRequest {
   verifiedWith2fa: boolean;
   user: { id: number; name: string; email: string; role: string };
 }
+export interface DecidedPasswordReset extends PasswordResetRequest {
+  status: "approved" | "declined";
+  decidedAt: string;
+  decidedBy: { id: number; name: string } | null;
+}
+/** Approved and declined requests from the last 30 days. */
+export const listRecentPasswordResets = () => customFetch<DecidedPasswordReset[]>("/api/admin/password-resets/recent");
 export const listPasswordResets = () => customFetch<PasswordResetRequest[]>("/api/admin/password-resets");
 export const approvePasswordReset = (id: number) => customFetch<{ id: number; status: string }>(`/api/admin/password-resets/${id}/approve`, json("POST"));
 export const declinePasswordReset = (id: number) => customFetch<{ id: number; status: string }>(`/api/admin/password-resets/${id}/decline`, json("POST"));
@@ -246,6 +258,31 @@ export function uploadMedia(
 export const listPlaylist = () => customFetch<PlaylistItem[]>("/api/admin/playlist");
 export const addToPlaylist = (mediaId: number) => customFetch<PlaylistItem>("/api/admin/playlist", json("POST", { mediaId }));
 export const removeFromPlaylist = (id: number) => customFetch<{ success: boolean }>(`/api/admin/playlist/${id}`, json("DELETE"));
+// --- playlists + weekly schedule
+export interface PlaylistSummary {
+  id: number;
+  name: string;
+  itemCount: number;
+  totalDurationSeconds: number;
+  /** 0 = Sunday ... 6 = Saturday, 7 = the default queue. */
+  scheduledDays: number[];
+}
+export interface Schedule {
+  timezone: string;
+  today: StationStatus["today"];
+  /** Day ("0"-"6", "7" = default) to playlist ids in play order. */
+  days: Record<string, number[]>;
+}
+export const listPlaylists = () => customFetch<PlaylistSummary[]>("/api/admin/playlists");
+export const createPlaylist = (name: string) => customFetch<PlaylistSummary>("/api/admin/playlists", json("POST", { name }));
+export const renamePlaylist = (id: number, name: string) => customFetch<{ id: number; name: string }>(`/api/admin/playlists/${id}`, json("PATCH", { name }));
+export const deletePlaylist = (id: number) => customFetch<{ success: boolean }>(`/api/admin/playlists/${id}`, json("DELETE"));
+export const listPlaylistItems = (id: number) => customFetch<PlaylistItem[]>(`/api/admin/playlists/${id}/items`);
+export const addToPlaylistById = (id: number, mediaId: number) => customFetch<PlaylistItem>(`/api/admin/playlists/${id}/items`, json("POST", { mediaId }));
+export const reorderPlaylistItems = (id: number, itemIds: number[]) => customFetch<PlaylistItem[]>(`/api/admin/playlists/${id}/items/order`, json("PUT", { itemIds }));
+export const removePlaylistItem = (id: number, itemId: number) => customFetch<{ success: boolean }>(`/api/admin/playlists/${id}/items/${itemId}`, json("DELETE"));
+export const getSchedule = () => customFetch<Schedule>("/api/admin/schedule");
+export const saveSchedule = (body: { timezone?: string; days: Record<string, number[]> }) => customFetch<Schedule>("/api/admin/schedule", json("PUT", body));
 export const reorderPlaylist = (itemIds: number[]) =>
   customFetch<PlaylistItem[]>("/api/admin/playlist/order", json("PUT", { itemIds }));
 export const getStationStatus = () => customFetch<StationStatus>("/api/admin/station");

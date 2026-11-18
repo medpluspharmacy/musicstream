@@ -9,6 +9,7 @@ import {
 import { formatDate } from "@/lib/format";
 import { useToast } from "@/hooks/use-toast";
 import { Button, Card, EmptyState, Input, PageHeader, StatusBadge } from "@/components/shared";
+import { RecentResets } from "@/components/password-resets";
 
 const STATUS_COLORS = {
   active: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30",
@@ -198,7 +199,7 @@ export default function Listeners() {
   }, [listeners, search, view]);
 
   const onError = (title: string) => (err: unknown) => toast({ title, description: errorMessage(err), variant: "destructive" });
-  const refresh = () => ["listeners", "listeners-connected", "password-resets", "dashboard-summary"].forEach(k => qc.invalidateQueries({ queryKey: [k] }));
+  const refresh = () => ["listeners", "listeners-connected", "password-resets", "password-resets-recent", "dashboard-summary"].forEach(k => qc.invalidateQueries({ queryKey: [k] }));
   const approve = useMutation({
     mutationFn: (u: User) => approveListener(u.id),
     onSuccess: (u) => { refresh(); toast({ title: "Approved", description: `${u.name} can now listen.` }); },
@@ -265,7 +266,11 @@ export default function Listeners() {
             <Input placeholder="Search by name or email" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           {view === "resets" && (
-            <PasswordResetTable requests={resets} search={search} busy={decideReset.isPending} onDecide={(r, approve) => decideReset.mutate({ r, approve })} />
+            <>
+              <PasswordResetTable requests={resets} search={search} busy={decideReset.isPending} onDecide={(r, approve) => decideReset.mutate({ r, approve })} />
+              <p className="px-5 pt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-t border-border">Recently approved and declined</p>
+              <RecentResets />
+            </>
           )}
           {view === "connected" && (
             <ConnectedTable

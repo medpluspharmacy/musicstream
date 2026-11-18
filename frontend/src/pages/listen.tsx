@@ -401,6 +401,7 @@ export default function Listen() {
                   {title}
                 </p>
                 {stream?.artist && <p className="text-muted-foreground truncate">{stream.artist}</p>}
+                {current?.playlistName && <p className="text-sm text-muted-foreground truncate">From {current.playlistName}</p>}
               </div>
               <Button variant="outline" size="sm" onClick={() => setTunedIn(false)}>Stop</Button>
             </div>

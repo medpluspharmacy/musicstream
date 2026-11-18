@@ -1,16 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, ListMusic, Music, Play, Radio, Square, Trash2, Video } from "lucide-react";
+import { Play, Radio, Square } from "lucide-react";
 import {
-  listPlaylist, listMedia, addToPlaylist, removeFromPlaylist, reorderPlaylist,
-  getStationStatus, startStation, stopStation, getNowPlaying, setStationSource, setPlayback, errorMessage,
-  type PlaybackSettings, type StationSource,
+  getStationStatus, startStation, stopStation, getNowPlaying, setStationSource, setPlayback, errorMessage, type PlaybackSettings, type StationSource,
 } from "@/lib";
-import { formatDuration } from "@/lib/format";
 import { useToast } from "@/hooks/use-toast";
-import { Button, Card, EmptyState, LoadError, PageHeader } from "@/components/shared";
+import { Button, Card, PageHeader } from "@/components/shared";
 import { Slider } from "@/components/ui/slider";
+import { ScheduleCard } from "@/components/schedule-editor";
+import { PlaylistsCard } from "@/components/playlist-editor";
 import { Switch } from "@/components/ui/switch";
 
 const CROSSFADE_SAVE_DELAY_MS = 400;
@@ -137,7 +136,9 @@ function StationCard() {
                 ? `Now playing: ${nowTitle}`
                 : onAzuraCast
                   ? "Listeners hear your AzuraCast station while the station is live."
-                  : "Listeners hear the playlist on a continuous loop while the station is live."}
+                  : status?.today.playlists.length
+                    ? `Today: ${status.today.playlists.map(p => p.name).join(" → ")}, on a loop.`
+                    : "Nothing is scheduled for today. Add a playlist to today's queue below."}
             </p>
           </div>
         </div>
@@ -157,7 +158,7 @@ function StationCard() {
       <div className="mt-5 pt-5 border-t border-border flex flex-col sm:flex-row sm:items-center gap-3">
         <p className="text-sm font-medium text-muted-foreground shrink-0">Station plays</p>
         <div className="inline-flex rounded-xl border border-border p-1 bg-muted/40">
-          {([["playlist", "This playlist"], ["azuracast", status?.azuracastStation ? `AzuraCast · ${status.azuracastStation}` : "AzuraCast"]] as const).map(([value, label]) => (
+          {([["playlist", "Schedule"], ["azuracast", status?.azuracastStation ? `AzuraCast · ${status.azuracastStation}` : "AzuraCast"]] as const).map(([value, label]) => (
             <button
               key={value}
               type="button"
@@ -182,106 +183,14 @@ function StationCard() {
   );
 }
 
-export default function Playlist() {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const [selected, setSelected] = useState("");
-  const { data: items = [], isLoading, isError, error, refetch } = useQuery({ queryKey: ["playlist"], queryFn: listPlaylist });
-  const { data: media = [] } = useQuery({ queryKey: ["media"], queryFn: listMedia });
-
-  const refresh = () => ["playlist", "media", "station", "now-playing"].forEach(k => qc.invalidateQueries({ queryKey: [k] }));
-  const onError = (title: string) => (err: unknown) => toast({ title, description: errorMessage(err), variant: "destructive" });
-  const add = useMutation({
-    mutationFn: (mediaId: number) => addToPlaylist(mediaId),
-    onSuccess: () => { setSelected(""); refresh(); },
-    onError: onError("Couldn't add to playlist"),
-  });
-  const remove = useMutation({ mutationFn: removeFromPlaylist, onSuccess: refresh, onError: onError("Couldn't remove item") });
-  const reorder = useMutation({
-    mutationFn: reorderPlaylist,
-    onSuccess: (updated) => { qc.setQueryData(["playlist"], updated); refresh(); },
-    onError: onError("Couldn't reorder"),
-  });
-
-  function move(index: number, delta: number) {
-    const ids = items.map(i => i.id);
-    const target = index + delta;
-    if (target < 0 || target >= ids.length) return;
-    [ids[index], ids[target]] = [ids[target], ids[index]];
-    reorder.mutate(ids);
-  }
-
-  const total = items.reduce((sum, i) => sum + i.media.durationSeconds, 0);
-
+export default function Playlists() {
   return (
     <div>
-      <PageHeader title="Playlist" description="The universal playlist every listener hears, in this order." />
+      <PageHeader title="Playlists" description="Build playlists, then schedule which ones play each day of the week." />
       <StationCard />
       <PlaybackCard />
-
-      <Card className="p-5 mb-6">
-        {media.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Your media library is empty. <Link href="/media" className="text-primary font-medium hover:underline">Upload media</Link> to build the playlist.
-          </p>
-        ) : (
-          <form
-            className="flex flex-col sm:flex-row gap-3"
-            onSubmit={e => { e.preventDefault(); if (selected) add.mutate(Number(selected)); }}
-          >
-            <select
-              value={selected}
-              onChange={e => setSelected(e.target.value)}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-background border border-border focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/20"
-              required
-            >
-              <option value="">Choose from the media library…</option>
-              {media.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.title} ({m.kind}, {formatDuration(m.durationSeconds)}){m.inPlaylist ? " · already in playlist" : ""}
-                </option>
-              ))}
-            </select>
-            <Button type="submit" isLoading={add.isPending} className="shrink-0">Add to playlist</Button>
-          </form>
-        )}
-      </Card>
-
-      {isError ? (
-        <LoadError what="the playlist" error={error} onRetry={() => refetch()} />
-      ) : !isLoading && items.length === 0 ? (
-        <EmptyState icon={ListMusic} title="The playlist is empty" description="Add media above, then go live." />
-      ) : (
-        <Card>
-          <div className="px-5 py-3 border-b border-border text-sm text-muted-foreground">
-            {items.length} items · {formatDuration(total)} per loop
-          </div>
-          <ol className="divide-y divide-border">
-            {items.map((item, index) => {
-              const Icon = item.media.kind === "video" ? Video : Music;
-              return (
-                <li key={item.id} className="flex items-center gap-3 px-5 py-3">
-                  <span className="w-6 text-sm tabular-nums text-muted-foreground text-right">{index + 1}</span>
-                  <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <p className="flex-1 min-w-0 truncate font-medium">{item.media.title}</p>
-                  <span className="text-sm tabular-nums text-muted-foreground">{formatDuration(item.media.durationSeconds)}</span>
-                  <div className="flex items-center shrink-0">
-                    <Button variant="ghost" size="sm" aria-label="Move up" disabled={index === 0 || reorder.isPending} onClick={() => move(index, -1)}>
-                      <ArrowUp className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" aria-label="Move down" disabled={index === items.length - 1 || reorder.isPending} onClick={() => move(index, 1)}>
-                      <ArrowDown className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" aria-label="Remove from playlist" onClick={() => remove.mutate(item.id)}>
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </Card>
-      )}
+      <ScheduleCard />
+      <PlaylistsCard />
     </div>
   );
 }

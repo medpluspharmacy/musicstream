@@ -6,7 +6,7 @@ A private, company-wide radio station. Admins upload audio and video (ads, jingl
 
 **Admin** (roles `admin`, `super_admin`)
 - **Media Library**: upload up to 5 audio/video files at a time with progress, preview, rename, delete
-- **Playlist**: add from the library, reorder, remove; go live / stop the station
+- **Playlists**: build several playlists, and a weekly schedule of which ones play each day (a queue per day, with a default); go live / stop the station
 - **Listeners**: approve or decline new sign-ups; approve password resets; see who's connected and listening now; sign people out; see 2FA status; deactivate/reactivate; reset 2FA
 - **Admin team** (super admin only): promote approved listeners to sub-admins and choose what each one manages
 - **Integrations**: uploaded media, and AzuraCast radio stations (see below); Spotify is planned
@@ -43,7 +43,7 @@ No email is sent, so resetting a password needs an admin's approval:
 
 ### How the live station works
 
-The playlist plays as an endless loop anchored to the moment the station went live (`station_state.started_at`). `GET /api/station/now-playing` tells each listener which item is on and how many seconds in, and the player re-syncs every 15 seconds. When the admin edits the playlist, the anchor is shifted so the item currently playing carries on without a jump.
+Each day the station plays that day's **programme**: its queue of playlists laid end to end, looped. Days come from the weekly schedule (`playlist_schedule`: day 0 = Sunday to 6 = Saturday, and 7 for the default queue used by days without their own), in the station's time zone (`station_state.timezone`, default Africa/Lagos). The programme is anchored to the moment it started (`station_state.started_at` for the local date `anchor_day`). At midnight the item playing finishes, then the new day's programme starts from the top, and the anchor moves forward. `GET /api/station/now-playing` tells each listener which item is on and how many seconds in, and the player re-syncs every 15 seconds. When an admin edits a playlist, the schedule, the time zone or the playback settings, the anchor is shifted so the item currently playing carries on without a jump. The older single-playlist endpoints (`/api/admin/playlist`) still work, on the first playlist in the default queue.
 
 **Playback** settings on the Playlist page apply to every listener:
 - **Crossfade** (0–12 seconds) starts each item that many seconds before the previous one ends, fading one out and the other in. The schedule includes the overlap, so listeners stay in sync. It's capped at half the length of either item, and a one-item playlist doesn't fade into itself. iOS and iPadOS don't let pages change volume, so players there cut cleanly at the same moment.
