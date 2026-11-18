@@ -52,7 +52,7 @@ const NAV_STRUCTURE: NavEntry[] = [
     icon: ListMusic,
     items: [
       { name: "Media Library", path: "/media", icon: Library, access: "station" },
-      { name: "Playlist", path: "/playlist", icon: ListMusic, access: "station" },
+      { name: "Playlists", path: "/playlist", icon: ListMusic, access: "station" },
     ],
   },
   {

@@ -5,6 +5,7 @@ import type MediaFile from "./MediaFile.js";
 class PlaylistItem extends Model {
   declare id: number;
   declare mediaId: number;
+  declare playlistId: number;
   declare position: number;
   declare createdAt: Date;
   declare media?: MediaFile;
@@ -14,6 +15,7 @@ PlaylistItem.init(
   {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     mediaId: { type: DataTypes.INTEGER, allowNull: false, field: "media_id" },
+    playlistId: { type: DataTypes.INTEGER, allowNull: false, field: "playlist_id" },
     position: { type: DataTypes.INTEGER, allowNull: false },
     createdAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW, field: "created_at" },
   },

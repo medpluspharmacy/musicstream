@@ -1,7 +1,8 @@
 import { ChangeEvent, FormEvent, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Library, Music, Video, Trash2, Pencil, ListPlus, Play, X } from "lucide-react";
-import { listMedia, uploadMedia, renameMedia, deleteMedia, addToPlaylist, errorMessage, type MediaFile } from "@/lib";
+import { listMedia, uploadMedia, renameMedia, deleteMedia, addToPlaylistById, listPlaylists, errorMessage, type MediaFile } from "@/lib";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatBytes, formatDuration } from "@/lib/format";
 import { resolveApiUrl } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -176,9 +177,10 @@ function MediaRow({ m }: { m: MediaFile }) {
 
   const rename = useMutation({ mutationFn: (t: string) => renameMedia(m.id, t), onSuccess: refresh, onError: onError("Couldn't rename") });
   const remove = useMutation({ mutationFn: () => deleteMedia(m.id), onSuccess: refresh, onError: onError("Couldn't delete") });
+  const { data: playlists = [] } = useQuery({ queryKey: ["playlists"], queryFn: listPlaylists });
   const add = useMutation({
-    mutationFn: () => addToPlaylist(m.id),
-    onSuccess: () => { refresh(); toast({ title: "Added to playlist", description: m.title }); },
+    mutationFn: (p: { id: number; name: string }) => addToPlaylistById(p.id, m.id),
+    onSuccess: (_r, p) => { refresh(); qc.invalidateQueries({ queryKey: ["playlists"] }); qc.invalidateQueries({ queryKey: ["playlist-items"] }); toast({ title: `Added to ${p.name}`, description: m.title }); },
     onError: onError("Couldn't add to playlist"),
   });
   const Icon = m.kind === "video" ? Video : Music;
@@ -206,9 +208,19 @@ function MediaRow({ m }: { m: MediaFile }) {
           }}>
             <Pencil className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="sm" aria-label="Add to playlist" onClick={() => add.mutate()} isLoading={add.isPending}>
-            <ListPlus className="w-4 h-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" aria-label="Add to playlist" isLoading={add.isPending}>
+                <ListPlus className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Add to playlist</DropdownMenuLabel>
+              {playlists.map(p => (
+                <DropdownMenuItem key={p.id} onSelect={() => add.mutate(p)}>{p.name}</DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="ghost" size="sm" aria-label="Delete" onClick={() => {
             const warn = m.inPlaylist ? " It will also be removed from the playlist." : "";
             if (confirm(`Delete "${m.title}"?${warn}`)) remove.mutate();

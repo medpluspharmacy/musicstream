@@ -10,6 +10,7 @@ import { forget } from "../lib/presence.js";
 /** A request not approved within this long has to be made again. */
 export const RESET_REQUEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const MIN_PASSWORD_LENGTH = 8;
+const RECENT_DAYS = 30;
 
 // A real bcrypt hash, compared against when the email is unknown, so a reply
 // takes as long whether or not the account exists.
@@ -92,6 +93,25 @@ export default class PasswordResetController {
       order: [["createdAt", "ASC"]],
     });
     return rows.map(view);
+  }
+
+  /** Approved and declined requests from the last 30 days, newest first, with who decided. */
+  static async listRecent(approver: Approver) {
+    const rows = await PasswordResetRequest.findAll({
+      where: { status: ["approved", "declined"], decidedAt: { [Op.gte]: new Date(Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000) } },
+      include: [
+        { model: User, as: "user", where: { role: rolesFor(approver) }, attributes: ["id", "name", "email", "role"] },
+        { model: User, as: "decidedBy", attributes: ["id", "name"], required: false },
+      ],
+      order: [["decidedAt", "DESC"]],
+      limit: 50,
+    });
+    return rows.map(r => ({
+      ...view(r),
+      status: r.status as "approved" | "declined",
+      decidedAt: r.decidedAt,
+      decidedBy: (r as any).decidedBy ? { id: (r as any).decidedBy.id, name: (r as any).decidedBy.name } : null,
+    }));
   }
 
   static async countPending(approver: Approver) {
